@@ -1,4 +1,4 @@
-﻿import type { ModuleMeta } from '@/types/domain'
+import type { ModuleMeta } from '@/types/domain'
 
 export const moduleCatalog: ModuleMeta[] = [
   {
@@ -56,17 +56,8 @@ export const moduleCatalog: ModuleMeta[] = [
     mobileSupported: true,
   },
   {
-    moduleKey: 'competitor-monitoring',
-    name: '企业竞品监控',
-    category: 'enterprise',
-    description: '跟踪竞品价格、活动与内容策略，自动输出对比摘要。',
-    icon: 'Histogram',
-    status: 'active',
-    mobileSupported: true,
-  },
-  {
     moduleKey: 'data-retrospective-automation',
-    name: '企业数据复盘自动化',
+    name: '数据复盘自动化',
     category: 'enterprise',
     description: '自动聚合经营数据，生成阶段复盘结论与优化建议。',
     icon: 'DataLine',
@@ -74,26 +65,8 @@ export const moduleCatalog: ModuleMeta[] = [
     mobileSupported: true,
   },
   {
-    moduleKey: 'matchmaking-ai',
-    name: '高学历相亲 AI 自动匹配',
-    category: 'personal',
-    description: '基于偏好与约束条件自动匹配候选人，并推送提醒。',
-    icon: 'User',
-    status: 'active',
-    mobileSupported: true,
-  },
-  {
-    moduleKey: 'product-health-check',
-    name: 'AI 商品体检',
-    category: 'personal',
-    description: '上传商品图片与信息，自动输出风险项和建议等级。',
-    icon: 'Camera',
-    status: 'active',
-    mobileSupported: true,
-  },
-  {
     moduleKey: 'anti-fraud-guardian',
-    name: '个人反诈守护',
+    name: '全域反诈守护',
     category: 'personal',
     description: '识别可疑话术、链接与账号行为，提示潜在诈骗风险。',
     icon: 'Lock',
@@ -102,37 +75,10 @@ export const moduleCatalog: ModuleMeta[] = [
   },
   {
     moduleKey: 'personal-invoice-manager',
-    name: '个人发票管理',
+    name: '个人票证管理',
     category: 'personal',
     description: '自动归类个人票据，支持快速检索和报销前预检查。',
     icon: 'Document',
-    status: 'active',
-    mobileSupported: true,
-  },
-  {
-    moduleKey: 'teacher-knowledge-monetization',
-    name: '教师知识库 + 投稿变现',
-    category: 'personal',
-    description: '沉淀教学资料并自动生成投稿草案，提升产出效率。',
-    icon: 'Reading',
-    status: 'beta',
-    mobileSupported: true,
-  },
-  {
-    moduleKey: 'job-lead-capture',
-    name: '个人求职线索自动抓取',
-    category: 'personal',
-    description: '自动抓取职位线索并按匹配度整理投递优先级。',
-    icon: 'Briefcase',
-    status: 'active',
-    mobileSupported: true,
-  },
-  {
-    moduleKey: 'content-auto-publishing',
-    name: '个人内容自动生成与发布',
-    category: 'personal',
-    description: '按内容主题自动生成多平台文案并计划发布节奏。',
-    icon: 'EditPen',
     status: 'active',
     mobileSupported: true,
   },

@@ -26,11 +26,11 @@ const categoryLabel = {
 const userName = computed(() => auth.user?.name ?? '未登录用户')
 
 function toCustomer() {
-  void router.push('/customer')
+  void router.push({ name: 'customer' })
 }
 
-function toInfo(path: '/help' | '/contact' | '/terms' | '/privacy') {
-  void router.push(path)
+function toInfo(name: 'help' | 'contact' | 'terms' | 'privacy') {
+  void router.push({ name })
 }
 
 function isModuleActive(moduleKey: string) {
@@ -39,7 +39,7 @@ function isModuleActive(moduleKey: string) {
 
 function openModule(moduleKey: string) {
   mobileDrawer.value = false
-  void router.push(`/app/${moduleKey}`)
+  void router.push({ name: 'module-workspace', params: { moduleKey } })
 }
 
 function resolveModuleIcon(name: string): Component {
@@ -48,7 +48,7 @@ function resolveModuleIcon(name: string): Component {
 
 async function onLogout() {
   await auth.logout()
-  void router.push('/login')
+  void router.push({ path: '/', query: { auth: 'login' } })
 }
 
 watch(
@@ -68,15 +68,15 @@ watch(
         </button>
         <div class="brand-mark">OC</div>
         <div>
-          <h1 class="brand-title">小龙虾 AI 自动化全业务平台</h1>
+          <h1 class="brand-title">ClawPilot</h1>
           <p class="brand-subtitle">统一前台 · 15 个业务场景 · 全端响应式</p>
         </div>
       </div>
 
       <nav class="top-links">
         <button type="button" class="link-btn" @click="toCustomer">客户中心</button>
-        <button type="button" class="link-btn" @click="toInfo('/help')">帮助中心</button>
-        <button type="button" class="link-btn" @click="toInfo('/contact')">联系我们</button>
+        <button type="button" class="link-btn" @click="toInfo('help')">帮助中心</button>
+        <button type="button" class="link-btn" @click="toInfo('contact')">联系我们</button>
       </nav>
 
       <el-dropdown trigger="click">
@@ -87,7 +87,7 @@ watch(
         <template #dropdown>
           <el-dropdown-menu>
             <el-dropdown-item @click="toCustomer">客户中心</el-dropdown-item>
-            <el-dropdown-item @click="toInfo('/privacy')">隐私政策</el-dropdown-item>
+            <el-dropdown-item @click="toInfo('privacy')">隐私政策</el-dropdown-item>
             <el-dropdown-item divided @click="onLogout">退出登录</el-dropdown-item>
           </el-dropdown-menu>
         </template>
@@ -141,11 +141,11 @@ watch(
     </div>
 
     <footer class="bottom-bar card-panel">
-      <p>© 2026 小龙虾 AI 自动化全业务平台</p>
+      <p>© 2026 ClawPilot</p>
       <div class="footer-links">
-        <button type="button" @click="toInfo('/terms')">服务条款</button>
-        <button type="button" @click="toInfo('/privacy')">隐私政策</button>
-        <button type="button" @click="toInfo('/contact')">客服支持</button>
+        <button type="button" @click="toInfo('terms')">服务条款</button>
+        <button type="button" @click="toInfo('privacy')">隐私政策</button>
+        <button type="button" @click="toInfo('contact')">客服支持</button>
       </div>
     </footer>
 

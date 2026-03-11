@@ -1,7 +1,6 @@
-﻿import { createRouter, createWebHistory } from 'vue-router'
+import { createRouter, createWebHistory } from 'vue-router'
 import MainLayout from '@/layouts/MainLayout.vue'
-import LoginView from '@/views/LoginView.vue'
-import RegisterView from '@/views/RegisterView.vue'
+import LandingView from '@/views/LandingView.vue'
 import CustomerCenterView from '@/views/CustomerCenterView.vue'
 import ModuleWorkspaceView from '@/views/ModuleWorkspaceView.vue'
 import StaticInfoView from '@/views/StaticInfoView.vue'
@@ -11,25 +10,19 @@ export const router = createRouter({
   history: createWebHistory(),
   routes: [
     {
-      path: '/login',
-      name: 'login',
-      component: LoginView,
-      meta: { guestOnly: true },
-    },
-    {
-      path: '/register',
-      name: 'register',
-      component: RegisterView,
-      meta: { guestOnly: true },
-    },
-    {
       path: '/',
+      name: 'landing',
+      component: LandingView,
+      meta: { guestOnly: false },
+    },
+    {
+      path: '/app',
       component: MainLayout,
       meta: { requiresAuth: true },
       children: [
         {
           path: '',
-          redirect: '/customer',
+          redirect: { name: 'customer' },
         },
         {
           path: 'customer',
@@ -38,7 +31,7 @@ export const router = createRouter({
           meta: { requiresAuth: true },
         },
         {
-          path: 'app/:moduleKey',
+          path: ':moduleKey',
           name: 'module-workspace',
           component: ModuleWorkspaceView,
           meta: { requiresAuth: true },
@@ -71,7 +64,7 @@ export const router = createRouter({
     },
     {
       path: '/:pathMatch(.*)*',
-      redirect: '/customer',
+      redirect: { name: 'customer' },
     },
   ],
 })
@@ -81,13 +74,13 @@ router.beforeEach((to) => {
   auth.hydrate()
 
   if (to.meta.guestOnly && auth.isAuthenticated) {
-    return '/customer'
+    return { name: 'customer' }
   }
 
   if (to.meta.requiresAuth && !auth.isAuthenticated) {
     return {
-      path: '/login',
-      query: { redirect: to.fullPath },
+      path: '/',
+      query: { auth: 'login', redirect: to.fullPath },
     }
   }
 
@@ -95,7 +88,7 @@ router.beforeEach((to) => {
     const moduleKey = String(to.params.moduleKey ?? '')
     const enabled = auth.user?.enabledModules ?? []
     if (!enabled.includes(moduleKey)) {
-      return '/customer'
+      return { name: 'customer' }
     }
   }
 
