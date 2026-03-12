@@ -193,6 +193,17 @@ export function createDataRepository({ env, moduleCatalog, securityService, getM
         CONSTRAINT fk_tasks_owner FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `)
+
+    await p.query(`
+      CREATE TABLE IF NOT EXISTS module_settings (
+        id BIGINT PRIMARY KEY AUTO_INCREMENT,
+        module_key VARCHAR(100) NOT NULL UNIQUE,
+        config_json JSON NOT NULL,
+        updated_by VARCHAR(64) NULL,
+        created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+        updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `)
   }
 
   async function ensureSchemaMigrations() {
@@ -455,16 +466,25 @@ export function createDataRepository({ env, moduleCatalog, securityService, getM
     )
   }
 
-  async function claimNextQueuedTask() {
+  async function claimNextQueuedTask(excludedModuleKeys = []) {
     const p = await ensurePool()
     const conn = await p.getConnection()
     try {
       await conn.beginTransaction()
+      const exclusionSql =
+        Array.isArray(excludedModuleKeys) && excludedModuleKeys.length
+          ? ` AND module_key NOT IN (${excludedModuleKeys.map(() => '?').join(', ')})`
+          : ''
+      const selectParams =
+        Array.isArray(excludedModuleKeys) && excludedModuleKeys.length
+          ? [...excludedModuleKeys]
+          : []
       const [rows] = await conn.query(
-        `SELECT * FROM tasks WHERE status = 'queued'
+        `SELECT * FROM tasks WHERE status = 'queued'${exclusionSql}
          ORDER BY created_at ASC
          LIMIT 1
          FOR UPDATE`,
+        selectParams,
       )
       if (!rows.length) {
         await conn.commit()
@@ -518,6 +538,130 @@ export function createDataRepository({ env, moduleCatalog, securityService, getM
     }
   }
 
+  // ---- 管理员专属查询方法 ----
+
+  async function listUsers(limit = 100, offset = 0, search = '') {
+    const p = await ensurePool()
+    if (search) {
+      const like = `%${search}%`
+      const [rows] = await p.query(
+        'SELECT * FROM users WHERE (name LIKE ? OR contact LIKE ?) ORDER BY created_at DESC LIMIT ? OFFSET ?',
+        [like, like, limit, offset],
+      )
+      return rows.map(mapUserRow)
+    }
+    const [rows] = await p.query(
+      'SELECT * FROM users ORDER BY created_at DESC LIMIT ? OFFSET ?',
+      [limit, offset],
+    )
+    return rows.map(mapUserRow)
+  }
+
+  async function countUsers(search = '') {
+    const p = await ensurePool()
+    if (search) {
+      const like = `%${search}%`
+      const [[row]] = await p.query(
+        'SELECT COUNT(*) AS c FROM users WHERE (name LIKE ? OR contact LIKE ?)',
+        [like, like],
+      )
+      return Number(row.c)
+    }
+    const [[row]] = await p.query('SELECT COUNT(*) AS c FROM users')
+    return Number(row.c)
+  }
+
+  async function updateUserEnabledModules(userId, modules) {
+    const p = await ensurePool()
+    await p.query(
+      'UPDATE users SET enabled_modules_json = CAST(? AS JSON), updated_at = CURRENT_TIMESTAMP(3) WHERE id = ?',
+      [toJson(modules), userId],
+    )
+  }
+
+  async function listAllTasks(opts = {}) {
+    const p = await ensurePool()
+    const { status, moduleKey, limit = 50, offset = 0 } = opts
+    const conditions = []
+    const params = []
+    if (status) { conditions.push('status = ?'); params.push(status) }
+    if (moduleKey) { conditions.push('module_key = ?'); params.push(moduleKey) }
+    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
+    const [rows] = await p.query(
+      `SELECT * FROM tasks ${where} ORDER BY updated_at DESC LIMIT ? OFFSET ?`,
+      [...params, limit, offset],
+    )
+    return rows.map(mapTaskRow)
+  }
+
+  async function countAllTasks(opts = {}) {
+    const p = await ensurePool()
+    const { status, moduleKey } = opts
+    const conditions = []
+    const params = []
+    if (status) { conditions.push('status = ?'); params.push(status) }
+    if (moduleKey) { conditions.push('module_key = ?'); params.push(moduleKey) }
+    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
+    const [[row]] = await p.query(`SELECT COUNT(*) AS c FROM tasks ${where}`, params)
+    return Number(row.c)
+  }
+
+  async function getModuleStats() {
+    const p = await ensurePool()
+    const [rows] = await p.query(`
+      SELECT module_key, status, COUNT(*) AS cnt
+      FROM tasks
+      GROUP BY module_key, status
+    `)
+    return rows
+  }
+
+  async function listUsersByModule(moduleKey) {
+    const p = await ensurePool()
+    const [rows] = await p.query(
+      `SELECT u.*, MAX(t.updated_at) AS last_task_at, COUNT(t.id) AS task_count
+       FROM users u
+       LEFT JOIN tasks t ON t.owner_id = u.id AND t.module_key = ?
+       WHERE JSON_CONTAINS(u.enabled_modules_json, ?)
+       GROUP BY u.id
+       ORDER BY last_task_at DESC`,
+      [moduleKey, JSON.stringify(moduleKey)],
+    )
+    return rows.map((row) => ({
+      ...mapUserRow(row),
+      lastTaskAt: row.last_task_at ? toIso(row.last_task_at) : null,
+      taskCount: Number(row.task_count ?? 0),
+    }))
+  }
+
+  async function findModuleSettings(moduleKey) {
+    const p = await ensurePool()
+    const [rows] = await p.query('SELECT * FROM module_settings WHERE module_key = ? LIMIT 1', [moduleKey])
+    if (!rows.length) return null
+    const row = rows[0]
+    return {
+      moduleKey: row.module_key,
+      config: parseJson(row.config_json, {}),
+      updatedBy: row.updated_by ?? '',
+      updatedAt: row.updated_at ? toIso(row.updated_at) : null,
+      createdAt: row.created_at ? toIso(row.created_at) : null,
+    }
+  }
+
+  async function upsertModuleSettings(moduleKey, config, updatedBy = '') {
+    const p = await ensurePool()
+    await p.query(
+      `INSERT INTO module_settings (module_key, config_json, updated_by)
+       VALUES (?, CAST(? AS JSON), ?)
+       ON DUPLICATE KEY UPDATE
+         config_json = VALUES(config_json),
+         updated_by = VALUES(updated_by),
+         updated_at = CURRENT_TIMESTAMP(3)`,
+      [moduleKey, toJson(config ?? {}), updatedBy || null],
+    )
+    return findModuleSettings(moduleKey)
+  }
+
   return {
     ensureInitialized,
     createSeedTasks,
@@ -539,6 +683,16 @@ export function createDataRepository({ env, moduleCatalog, securityService, getM
     claimNextQueuedTask,
     requeueRunningTasks,
     listTasksByStatus,
+    // 管理员专属
+    listUsers,
+    countUsers,
+    updateUserEnabledModules,
+    listAllTasks,
+    countAllTasks,
+    getModuleStats,
+    listUsersByModule,
+    findModuleSettings,
+    upsertModuleSettings,
     close,
   }
 }

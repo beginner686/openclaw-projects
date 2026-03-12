@@ -1,45 +1,162 @@
-import { randomBytes } from 'node:crypto'
+﻿import { randomBytes } from 'node:crypto'
 
 export function createTaskService({ env, moduleCatalog, getModuleName, getModuleRule, dataRepository, reportService }) {
   let workerTimer = null
   let cleanupTimer = null
-  const inFlightTaskIds = new Set()
+
+  const inFlightTaskMeta = new Map()
+  const retryCounter = new Map()
+  const moduleRuntimeCache = new Map()
+
+  const DEFAULT_RUNTIME = {
+    execution: {
+      mode: 'hybrid',
+      maxConcurrency: 3,
+      timeoutSeconds: 180,
+      retryLimit: 1,
+    },
+    visibility: {
+      allowCustomerView: true,
+      allowExport: true,
+    },
+    rule: {
+      focusChecks: [],
+      riskSignals: [],
+      failSignals: [],
+      nextActions: [],
+    },
+  }
 
   function fail(status, code, message) {
     return { ok: false, status, code, message }
   }
 
+  function clampNumber(value, min, max, fallback) {
+    const parsed = Number(value)
+    if (!Number.isFinite(parsed)) return fallback
+    return Math.min(max, Math.max(min, Math.round(parsed)))
+  }
+
+  function normalizeArray(value, fallback = []) {
+    if (!Array.isArray(value)) return [...fallback]
+    return [...new Set(value.map((item) => String(item).trim()).filter(Boolean).slice(0, 100))]
+  }
+
+  function includesToken(inputText, tokens) {
+    const content = String(inputText ?? '').toLowerCase()
+    return tokens.some((token) => content.includes(String(token).toLowerCase()))
+  }
+
+  function getModuleExists(moduleKey) {
+    return moduleCatalog.some((item) => item.moduleKey === moduleKey)
+  }
+
   function assertModuleAccess(user, moduleKey) {
-    if (!moduleCatalog.some((item) => item.moduleKey === moduleKey)) {
-      return fail(404, 'MODULE_NOT_FOUND', '业务模块不存在。')
+    if (!getModuleExists(moduleKey)) {
+      return fail(404, 'MODULE_NOT_FOUND', 'Module not found.')
     }
     if (!user.enabledModules.includes(moduleKey)) {
-      return fail(403, 'MODULE_FORBIDDEN', '当前账号未开通该业务。')
+      return fail(403, 'MODULE_FORBIDDEN', 'Current account has no access to this module.')
     }
     return { ok: true }
   }
 
-  function toClientTask(task, viewerId) {
+  async function getModuleRuntime(moduleKey) {
+    const now = Date.now()
+    const cached = moduleRuntimeCache.get(moduleKey)
+    if (cached && cached.expiresAt > now) {
+      return cached.value
+    }
+
+    const baseRule = getModuleRule(moduleKey) ?? DEFAULT_RUNTIME.rule
+    const defaults = {
+      execution: { ...DEFAULT_RUNTIME.execution },
+      visibility: { ...DEFAULT_RUNTIME.visibility },
+      rule: {
+        focusChecks: normalizeArray(baseRule.focusChecks),
+        riskSignals: normalizeArray(baseRule.riskSignals),
+        failSignals: normalizeArray(baseRule.failSignals),
+        nextActions: normalizeArray(baseRule.nextActions),
+      },
+    }
+
+    let settingsConfig = null
+    try {
+      const settings = await dataRepository.findModuleSettings(moduleKey)
+      settingsConfig = settings?.config ?? null
+    } catch (error) {
+      console.warn('[task-service] failed to load module settings:', moduleKey, error?.message ?? error)
+    }
+
+    const execution = {
+      mode: ['auto', 'manual', 'hybrid'].includes(settingsConfig?.execution?.mode)
+        ? settingsConfig.execution.mode
+        : defaults.execution.mode,
+      maxConcurrency: clampNumber(
+        settingsConfig?.execution?.maxConcurrency,
+        1,
+        20,
+        defaults.execution.maxConcurrency,
+      ),
+      timeoutSeconds: clampNumber(
+        settingsConfig?.execution?.timeoutSeconds,
+        30,
+        3600,
+        defaults.execution.timeoutSeconds,
+      ),
+      retryLimit: clampNumber(settingsConfig?.execution?.retryLimit, 0, 10, defaults.execution.retryLimit),
+    }
+
+    const visibility = {
+      allowCustomerView:
+        typeof settingsConfig?.visibility?.allowCustomerView === 'boolean'
+          ? settingsConfig.visibility.allowCustomerView
+          : defaults.visibility.allowCustomerView,
+      allowExport:
+        typeof settingsConfig?.visibility?.allowExport === 'boolean'
+          ? settingsConfig.visibility.allowExport
+          : defaults.visibility.allowExport,
+    }
+
+    const rule = {
+      focusChecks: normalizeArray(settingsConfig?.rule?.focusChecks, defaults.rule.focusChecks),
+      riskSignals: normalizeArray(settingsConfig?.rule?.riskSignals, defaults.rule.riskSignals),
+      failSignals: normalizeArray(settingsConfig?.rule?.failSignals, defaults.rule.failSignals),
+      nextActions: normalizeArray(settingsConfig?.rule?.nextActions, defaults.rule.nextActions),
+    }
+
+    const runtime = { execution, visibility, rule }
+    moduleRuntimeCache.set(moduleKey, { value: runtime, expiresAt: now + 5000 })
+    return runtime
+  }
+
+  async function toClientTask(task, viewerId) {
+    const runtime = await getModuleRuntime(task.moduleKey)
+    const reportUrl =
+      task.reportUrl && runtime.visibility.allowCustomerView && runtime.visibility.allowExport
+        ? reportService.buildAuthorizedReportUrl(task, viewerId)
+        : ''
+
     return {
       taskId: task.taskId,
       moduleKey: task.moduleKey,
       status: task.status,
       summary: task.summary,
       updatedAt: task.updatedAt,
-      reportUrl: reportService.buildAuthorizedReportUrl(task, viewerId),
+      reportUrl,
       errorMessage: task.errorMessage,
     }
   }
 
-  function shouldFailTask(task) {
-    const rule = getModuleRule(task.moduleKey)
-    const failSignals = ['force-fail', '强制失败', '模拟失败', 'error', 'fatal', ...rule.failSignals]
-    return failSignals.some((token) => task.inputText.toLowerCase().includes(token.toLowerCase()))
+  async function shouldFailTask(task, runtimeRule) {
+    const dynamicFailSignals = normalizeArray(runtimeRule?.failSignals)
+    const failSignals = ['force-fail', 'simulate-fail', 'error', 'fatal', ...dynamicFailSignals]
+    return includesToken(task.inputText, failSignals)
   }
 
   function estimateProcessMs(task) {
-    const textFactor = Math.min(2200, Math.max(600, task.inputText.length * 18))
-    const fileFactor = Math.min(1200, task.attachments.length * 250)
+    const textFactor = Math.min(2200, Math.max(600, String(task.inputText ?? '').length * 18))
+    const fileFactor = Math.min(1200, (Array.isArray(task.attachments) ? task.attachments.length : 0) * 250)
     return 1600 + textFactor + fileFactor
   }
 
@@ -54,17 +171,51 @@ export function createTaskService({ env, moduleCatalog, getModuleName, getModule
     }
   }
 
-  async function finalizeTask(taskId) {
+  async function finalizeTask(taskId, context = {}) {
     try {
       const task = await dataRepository.findTaskById(taskId)
       if (!task || task.status !== 'running') {
         return
       }
 
-      if (shouldFailTask(task)) {
+      const runtime = context.runtime ?? (await getModuleRuntime(task.moduleKey))
+
+      if (context.timedOut) {
+        const retries = retryCounter.get(taskId) ?? 0
+        if (retries < runtime.execution.retryLimit) {
+          retryCounter.set(taskId, retries + 1)
+          task.status = 'queued'
+          task.summary = `${getModuleName(task.moduleKey)} task timed out, auto retry ${retries + 1}/${runtime.execution.retryLimit}.`
+          task.errorMessage = undefined
+          task.updatedAt = new Date().toISOString()
+          await dataRepository.updateTask(task)
+          return
+        }
+
         task.status = 'failed'
-        task.summary = `${getModuleName(task.moduleKey)}任务执行失败：触发了异常关键词，请修正输入后重试。`
-        task.errorMessage = '处理引擎检测到高风险异常信号，已中断执行。'
+        task.summary = `${getModuleName(task.moduleKey)} task failed because processing exceeded timeout.`
+        task.errorMessage = `Timeout exceeded: ${runtime.execution.timeoutSeconds}s`
+        task.reportUrl = ''
+        task.updatedAt = new Date().toISOString()
+        await dataRepository.updateTask(task)
+        return
+      }
+
+      if (await shouldFailTask(task, runtime.rule)) {
+        const retries = retryCounter.get(taskId) ?? 0
+        if (retries < runtime.execution.retryLimit) {
+          retryCounter.set(taskId, retries + 1)
+          task.status = 'queued'
+          task.summary = `${getModuleName(task.moduleKey)} task failed signal detected, auto retry ${retries + 1}/${runtime.execution.retryLimit}.`
+          task.errorMessage = undefined
+          task.updatedAt = new Date().toISOString()
+          await dataRepository.updateTask(task)
+          return
+        }
+
+        task.status = 'failed'
+        task.summary = `${getModuleName(task.moduleKey)} task failed because fail-signal rule was triggered.`
+        task.errorMessage = 'Execution engine detected fail signals from module rules.'
         task.reportUrl = ''
         task.updatedAt = new Date().toISOString()
         await dataRepository.updateTask(task)
@@ -76,25 +227,58 @@ export function createTaskService({ env, moduleCatalog, getModuleName, getModule
       task.errorMessage = undefined
       await reportService.ensureTaskReport(task)
       await dataRepository.updateTask(task)
+      retryCounter.delete(taskId)
     } finally {
-      inFlightTaskIds.delete(taskId)
+      inFlightTaskMeta.delete(taskId)
     }
   }
 
+  async function getExcludedModulesByConcurrency() {
+    if (inFlightTaskMeta.size === 0) return []
+
+    const countMap = new Map()
+    for (const meta of inFlightTaskMeta.values()) {
+      countMap.set(meta.moduleKey, (countMap.get(meta.moduleKey) ?? 0) + 1)
+    }
+
+    const moduleKeys = [...countMap.keys()]
+    const runtimes = await Promise.all(moduleKeys.map((key) => getModuleRuntime(key)))
+    const excluded = []
+
+    moduleKeys.forEach((key, idx) => {
+      const running = countMap.get(key) ?? 0
+      const max = runtimes[idx]?.execution?.maxConcurrency ?? DEFAULT_RUNTIME.execution.maxConcurrency
+      if (running >= max) excluded.push(key)
+    })
+
+    return excluded
+  }
+
   async function pickAndRunTask() {
-    if (inFlightTaskIds.size >= env.maxConcurrency) {
+    if (inFlightTaskMeta.size >= env.maxConcurrency) {
       return
     }
 
-    const queuedTask = await dataRepository.claimNextQueuedTask()
+    const excludedModules = await getExcludedModulesByConcurrency()
+    const queuedTask = await dataRepository.claimNextQueuedTask(excludedModules)
     if (!queuedTask) {
       return
     }
 
-    inFlightTaskIds.add(queuedTask.taskId)
+    const runtime = await getModuleRuntime(queuedTask.moduleKey)
+    const estimateMs = estimateProcessMs(queuedTask)
+    const timeoutMs = runtime.execution.timeoutSeconds * 1000
+    const timedOut = estimateMs > timeoutMs
+    const delay = timedOut ? timeoutMs : estimateMs
+
+    inFlightTaskMeta.set(queuedTask.taskId, {
+      moduleKey: queuedTask.moduleKey,
+      startedAt: Date.now(),
+    })
+
     setTimeout(() => {
-      void finalizeTask(queuedTask.taskId)
-    }, estimateProcessMs(queuedTask))
+      void finalizeTask(queuedTask.taskId, { runtime, timedOut })
+    }, delay)
   }
 
   async function cleanupOldTasks() {
@@ -142,7 +326,22 @@ export function createTaskService({ env, moduleCatalog, getModuleName, getModule
     const attachments = Array.isArray(payload?.attachments) ? payload.attachments.map((item) => String(item)) : []
 
     if (!scenario || !inputText) {
-      return { error: fail(400, 'TASK_INVALID_PAYLOAD', '请填写任务场景和输入内容。') }
+      return { error: fail(400, 'TASK_INVALID_PAYLOAD', 'Scenario and input text are required.') }
+    }
+
+    const runtime = await getModuleRuntime(moduleKey)
+    const mode = runtime.execution.mode
+    const hasRiskSignal = includesToken(inputText, runtime.rule.riskSignals)
+
+    let status = 'queued'
+    let summary = `Task queued and waiting for execution (scenario: ${scenario}).`
+
+    if (mode === 'manual') {
+      status = 'review'
+      summary = `Task created in manual mode and waiting for admin review (scenario: ${scenario}).`
+    } else if (mode === 'hybrid' && hasRiskSignal) {
+      status = 'review'
+      summary = `Task paused for review because risk signals were detected in hybrid mode (scenario: ${scenario}).`
     }
 
     const task = {
@@ -152,8 +351,8 @@ export function createTaskService({ env, moduleCatalog, getModuleName, getModule
       scenario,
       inputText,
       attachments,
-      status: 'queued',
-      summary: `任务已入队，等待执行（场景：${scenario}）。`,
+      status,
+      summary,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       reportUrl: '',
@@ -162,7 +361,7 @@ export function createTaskService({ env, moduleCatalog, getModuleName, getModule
     }
     await dataRepository.createTask(task)
 
-    return { data: toClientTask(task, user.id) }
+    return { data: await toClientTask(task, user.id) }
   }
 
   async function getTask(user, moduleKey, taskId) {
@@ -173,9 +372,9 @@ export function createTaskService({ env, moduleCatalog, getModuleName, getModule
 
     const task = await dataRepository.findTaskByIdForUser(user.id, moduleKey, taskId)
     if (!task) {
-      return { error: fail(404, 'TASK_NOT_FOUND', '任务不存在。') }
+      return { error: fail(404, 'TASK_NOT_FOUND', 'Task not found.') }
     }
-    return { data: toClientTask(task, user.id) }
+    return { data: await toClientTask(task, user.id) }
   }
 
   async function getHistory(user, moduleKey) {
@@ -184,15 +383,25 @@ export function createTaskService({ env, moduleCatalog, getModuleName, getModule
       return { error: access }
     }
 
-    const history = (await dataRepository.listTasksByUserAndModule(user.id, moduleKey, 12)).map((task) =>
-      toClientTask(task, user.id),
-    )
+    const rows = await dataRepository.listTasksByUserAndModule(user.id, moduleKey, 12)
+    const history = await Promise.all(rows.map((task) => toClientTask(task, user.id)))
     return { data: history }
   }
 
   async function getEnabledModules(user) {
     const enabled = new Set(user.enabledModules)
     return moduleCatalog.filter((item) => enabled.has(item.moduleKey))
+  }
+
+  async function canUserAccessTaskReport(task, requesterUserId) {
+    if (!task || task.ownerId !== requesterUserId) {
+      return fail(403, 'REPORT_FORBIDDEN', 'No permission to access this report.')
+    }
+    const runtime = await getModuleRuntime(task.moduleKey)
+    if (!runtime.visibility.allowExport || !runtime.visibility.allowCustomerView) {
+      return fail(403, 'REPORT_FORBIDDEN', 'Report export for this module is disabled.')
+    }
+    return { ok: true }
   }
 
   async function findTaskByReportFile(fileName) {
@@ -209,8 +418,9 @@ export function createTaskService({ env, moduleCatalog, getModuleName, getModule
     getEnabledModules,
     findTaskByReportFile,
     toClientTask,
+    canUserAccessTaskReport,
     getQueueState: () => ({
-      inFlight: inFlightTaskIds.size,
+      inFlight: inFlightTaskMeta.size,
       maxConcurrency: env.maxConcurrency,
     }),
   }

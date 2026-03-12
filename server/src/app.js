@@ -15,6 +15,8 @@ import { createAuthRoutes } from './routes/auth-routes.js'
 import { createCustomerRoutes } from './routes/customer-routes.js'
 import { createModuleRoutes } from './routes/module-routes.js'
 import { createReportRoutes } from './routes/report-routes.js'
+import { createAdminRoutes } from './routes/admin-routes.js'
+import { createAdminService } from './services/admin-service.js'
 
 export async function createBackendApp() {
   validateEnvOrThrow(env)
@@ -32,6 +34,7 @@ export async function createBackendApp() {
     getModuleName,
     getModuleRule,
     securityService,
+    dataRepository,
   })
   const taskService = createTaskService({
     env,
@@ -52,7 +55,14 @@ export async function createBackendApp() {
     dataRepository,
     taskService,
   })
-  const authMiddleware = createAuthMiddleware({
+  const adminService = createAdminService({
+    dataRepository,
+    moduleCatalog,
+    getModuleName,
+    getModuleRule,
+    reportService,
+  })
+  const { authMiddleware, requireAdmin } = createAuthMiddleware({
     dataRepository,
     securityService,
   })
@@ -70,6 +80,7 @@ export async function createBackendApp() {
   app.use('/api/auth', createAuthRoutes({ authService, authMiddleware }))
   app.use('/api/customer', createCustomerRoutes({ authMiddleware, dashboardService }))
   app.use('/api/modules', createModuleRoutes({ authMiddleware, taskService }))
+  app.use('/api/admin', createAdminRoutes({ authMiddleware, requireAdmin, adminService }))
 
   app.get('/api/health', (_req, res) => {
     res.json({

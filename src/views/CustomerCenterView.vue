@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { moduleMap } from '@/config/modules'
@@ -46,10 +46,10 @@ const automationScore = computed(() => {
 })
 
 const scoreLevel = computed(() => {
-  if (automationScore.value >= 90) return '卓越'
-  if (automationScore.value >= 75) return '稳定'
-  if (automationScore.value >= 60) return '可优化'
-  return '待提升'
+  if (automationScore.value >= 90) return '鍗撹秺'
+  if (automationScore.value >= 75) return '绋冲畾'
+  if (automationScore.value >= 60) return '鍙紭鍖?
+  return '寰呮彁鍗?
 })
 
 const scoreLevelColor = computed(() => {
@@ -76,17 +76,17 @@ const statusRatio = computed(() => {
   }
 })
 
-// SVG 圆环参数
+// SVG 鍦嗙幆鍙傛暟
 const RING_R = 52
 const RING_CIRCUM = computed(() => 2 * Math.PI * RING_R)
 const ringDash = computed(() => (automationScore.value / 100) * RING_CIRCUM.value)
 const ringGap = computed(() => RING_CIRCUM.value - ringDash.value)
 
 function statusLabel(status: ModuleTaskResult['status']) {
-  if (status === 'completed') return '已完成'
-  if (status === 'failed') return '失败'
-  if (status === 'running') return '执行中'
-  return '排队中'
+  if (status === 'completed') return '宸插畬鎴?
+  if (status === 'failed') return '澶辫触'
+  if (status === 'running') return '鎵ц涓?
+  return '鎺掗槦涓?
 }
 
 function statusClass(status: ModuleTaskResult['status']) {
@@ -117,7 +117,7 @@ async function loadDashboard() {
   try {
     dashboard.value = await fetchCustomerDashboard()
   } catch (error) {
-    errorText.value = error instanceof Error ? error.message : '加载失败，请稍后重试。'
+    errorText.value = error instanceof Error ? error.message : '鍔犺浇澶辫触锛岃绋嶅悗閲嶈瘯銆?
     ElMessage.error(errorText.value)
   } finally {
     loading.value = false
@@ -132,9 +132,9 @@ onMounted(() => {
 <template>
   <section class="page-container command-page">
 
-    <!-- ═══════════════ HERO ═══════════════ -->
+    <!-- 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?HERO 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?-->
     <header class="card-panel mission-hero">
-      <!-- 背景装饰层 -->
+      <!-- 鑳屾櫙瑁呴グ灞?-->
       <div class="hero-bg">
         <div class="bg-aurora bg-aurora-1"></div>
         <div class="bg-aurora bg-aurora-2"></div>
@@ -142,16 +142,16 @@ onMounted(() => {
         <div class="bg-noise"></div>
       </div>
 
-      <!-- 左侧主内容 -->
+      <!-- 宸︿晶涓诲唴瀹?-->
       <div class="hero-main">
         <p class="hero-kicker">
           <span class="kicker-dot"></span>
           CLAWPILOT COMMAND DECK
         </p>
-        <h2 class="section-title">客户中心</h2>
+        <h2 class="section-title">瀹㈡埛涓績</h2>
         <p class="section-subtitle">
-          欢迎回来，<strong class="name-highlight">{{ auth.user?.name }}</strong>。
-          你的自动化系统正在持续运行，这里是全局态势与执行结果总览。
+          娆㈣繋鍥炴潵锛?strong class="name-highlight">{{ auth.user?.name }}</strong>銆?
+          浣犵殑鑷姩鍖栫郴缁熸鍦ㄦ寔缁繍琛岋紝杩欓噷鏄叏灞€鎬佸娍涓庢墽琛岀粨鏋滄€昏銆?
         </p>
 
         <div class="hero-meta">
@@ -159,19 +159,19 @@ onMounted(() => {
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
               <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
             </svg>
-            最近同步 {{ lastSyncText }}
+            鏈€杩戝悓姝?{{ lastSyncText }}
           </div>
           <div class="meta-badge" :style="{ color: scoreLevelColor, borderColor: scoreLevelColor + '44', background: scoreLevelColor + '18' }">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
               <path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z" fill="currentColor"/>
             </svg>
-            健康等级 {{ scoreLevel }}
+            鍋ュ悍绛夌骇 {{ scoreLevel }}
           </div>
           <div class="meta-badge success-badge">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
               <path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
-            完成率 {{ completionRate }}%
+            瀹屾垚鐜?{{ completionRate }}%
           </div>
         </div>
 
@@ -180,11 +180,11 @@ onMounted(() => {
             <path d="M1 4v6h6M23 20v-6h-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
             <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
-          刷新数据
+          鍒锋柊鏁版嵁
         </button>
       </div>
 
-      <!-- 右侧评分环 -->
+      <!-- 鍙充晶璇勫垎鐜?-->
       <div class="hero-side">
         <div class="score-ring-wrap">
           <svg class="score-svg" viewBox="0 0 130 130" width="130" height="130">
@@ -198,9 +198,9 @@ onMounted(() => {
                 <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
               </filter>
             </defs>
-            <!-- 轨道圆 -->
+            <!-- 杞ㄩ亾鍦?-->
             <circle cx="65" cy="65" :r="RING_R" fill="none" stroke="rgba(79,142,247,0.12)" stroke-width="10"/>
-            <!-- 进度弧 -->
+            <!-- 杩涘害寮?-->
             <circle
               cx="65" cy="65"
               :r="RING_R"
@@ -214,13 +214,13 @@ onMounted(() => {
               filter="url(#ringGlow)"
               class="ring-progress"
             />
-            <!-- 中心文字 -->
+            <!-- 涓績鏂囧瓧 -->
             <text x="65" y="58" text-anchor="middle" fill="#e8edf8" font-size="26" font-weight="800" font-family="inherit">{{ automationScore }}</text>
-            <text x="65" y="74" text-anchor="middle" fill="#6b7fa3" font-size="10" letter-spacing="1" font-family="inherit">自动化评分</text>
-            <!-- 等级标签 -->
+            <text x="65" y="74" text-anchor="middle" fill="#6b7fa3" font-size="10" letter-spacing="1" font-family="inherit">鑷姩鍖栬瘎鍒?/text>
+            <!-- 绛夌骇鏍囩 -->
             <text x="65" y="90" text-anchor="middle" :fill="scoreLevelColor" font-size="11" font-weight="700" font-family="inherit">{{ scoreLevel }}</text>
           </svg>
-          <!-- 外圈装饰 -->
+          <!-- 澶栧湀瑁呴グ -->
           <div class="ring-orbit"></div>
           <div class="ring-dot ring-dot-1"></div>
           <div class="ring-dot ring-dot-2"></div>
@@ -228,14 +228,20 @@ onMounted(() => {
       </div>
     </header>
 
-    <!-- ═══════════════ SKELETON / CONTENT ═══════════════ -->
+    <!-- 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?SKELETON / CONTENT 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?-->
     <el-skeleton :loading="loading" animated :rows="8">
-      <template #default>
+      <template #default>\r\n        <div class="dashboard-grid">
+          <section class="card-panel profile-card">
+            <h3>璐﹀彿淇℃伅</h3>
+            <p><strong>璐﹀彿:</strong> {{ auth.user?.contact }}</p>
+            <p><strong>瑙掕壊:</strong> {{ auth.user?.role === 'customer' ? '瀹㈡埛' : '绠＄悊鍛? }}</p>
+            <p><strong>鐘舵€?</strong> {{ auth.user?.tokenState === 'active' ? '姝ｅ父' : '寮傚父' }}</p>
+          </section>
 
-        <!-- ── KPI 指标卡片 ── -->
+        <!-- 鈹€鈹€ KPI 鎸囨爣鍗＄墖 鈹€鈹€ -->
         <div class="kpi-grid">
 
-          <!-- 模块开通率 -->
+          <!-- 妯″潡寮€閫氱巼 -->
           <article class="card-panel kpi-card kpi-blue">
             <div class="kpi-icon-wrap kpi-icon-blue">
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
@@ -246,19 +252,19 @@ onMounted(() => {
               </svg>
             </div>
             <div class="kpi-body">
-              <p class="kpi-label">模块开通率</p>
+              <p class="kpi-label">妯″潡寮€閫氱巼</p>
               <p class="kpi-value">{{ openedModuleCount }}<span class="kpi-unit">/{{ totalModuleCount }}</span></p>
               <div class="kpi-bar-track">
                 <div class="kpi-bar-fill kpi-bar-blue" :style="{ width: `${activationRate}%` }"></div>
               </div>
               <p class="kpi-note">
-                <span class="dot dot-blue"></span>企业 {{ enterpriseCount }}
-                <span class="dot dot-cyan"></span>个人 {{ personalCount }}
+                <span class="dot dot-blue"></span>浼佷笟 {{ enterpriseCount }}
+                <span class="dot dot-cyan"></span>涓汉 {{ personalCount }}
               </p>
             </div>
           </article>
 
-          <!-- 执行中任务 -->
+          <!-- 鎵ц涓换鍔?-->
           <article class="card-panel kpi-card kpi-amber">
             <div class="kpi-icon-wrap kpi-icon-amber">
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
@@ -266,18 +272,18 @@ onMounted(() => {
               </svg>
             </div>
             <div class="kpi-body">
-              <p class="kpi-label">执行中任务</p>
+              <p class="kpi-label">鎵ц涓换鍔?/p>
               <p class="kpi-value">{{ runningTaskCount }}</p>
               <div class="kpi-bar-track">
                 <div class="kpi-bar-fill kpi-bar-amber" :style="{ width: `${statusRatio.working}%` }"></div>
               </div>
               <p class="kpi-note">
-                <span class="dot dot-amber"></span>工作负载占比 {{ statusRatio.working }}%
+                <span class="dot dot-amber"></span>宸ヤ綔璐熻浇鍗犳瘮 {{ statusRatio.working }}%
               </p>
             </div>
           </article>
 
-          <!-- 任务完成率 -->
+          <!-- 浠诲姟瀹屾垚鐜?-->
           <article class="card-panel kpi-card kpi-green">
             <div class="kpi-icon-wrap kpi-icon-green">
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
@@ -286,19 +292,19 @@ onMounted(() => {
               </svg>
             </div>
             <div class="kpi-body">
-              <p class="kpi-label">任务完成率</p>
+              <p class="kpi-label">浠诲姟瀹屾垚鐜?/p>
               <p class="kpi-value">{{ completionRate }}<span class="kpi-unit">%</span></p>
               <div class="kpi-bar-track">
                 <div class="kpi-bar-fill kpi-bar-green" :style="{ width: `${completionRate}%` }"></div>
               </div>
               <p class="kpi-note">
-                <span class="dot dot-green"></span>完成 {{ completedTaskCount }}
-                <span class="dot dot-red"></span>失败 {{ failedTaskCount }}
+                <span class="dot dot-green"></span>瀹屾垚 {{ completedTaskCount }}
+                <span class="dot dot-red"></span>澶辫触 {{ failedTaskCount }}
               </p>
             </div>
           </article>
 
-          <!-- 报告产出 -->
+          <!-- 鎶ュ憡浜у嚭 -->
           <article class="card-panel kpi-card kpi-purple">
             <div class="kpi-icon-wrap kpi-icon-purple">
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
@@ -309,13 +315,13 @@ onMounted(() => {
               </svg>
             </div>
             <div class="kpi-body">
-              <p class="kpi-label">报告产出</p>
-              <p class="kpi-value">{{ reportCount }}<span class="kpi-unit">份</span></p>
+              <p class="kpi-label">鎶ュ憡浜у嚭</p>
+              <p class="kpi-value">{{ reportCount }}<span class="kpi-unit">浠?/span></p>
               <div class="kpi-bar-track">
                 <div class="kpi-bar-fill kpi-bar-purple" :style="{ width: `${Math.min(reportCount * 16, 100)}%` }"></div>
               </div>
               <p class="kpi-note">
-                <span class="dot dot-purple"></span>面向复盘、留档与协同
+                <span class="dot dot-purple"></span>闈㈠悜澶嶇洏銆佺暀妗ｄ笌鍗忓悓
               </p>
             </div>
           </article>
@@ -323,10 +329,10 @@ onMounted(() => {
 
         <el-alert v-if="errorText" :title="errorText" type="error" show-icon :closable="false" />
 
-        <!-- ── 主内容双栏 ── -->
+        <!-- 鈹€鈹€ 涓诲唴瀹瑰弻鏍?鈹€鈹€ -->
         <div class="main-grid">
 
-          <!-- 任务流（时间轴） -->
+          <!-- 浠诲姟娴侊紙鏃堕棿杞达級 -->
           <section class="card-panel task-stream">
             <div class="block-head">
               <div class="block-head-left">
@@ -334,9 +340,9 @@ onMounted(() => {
                   <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
                   <polyline points="12,6 12,12 16,14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
                 </svg>
-                <h3>任务流态势</h3>
+                <h3>浠诲姟娴佹€佸娍</h3>
               </div>
-              <span class="block-count">{{ recentTasks.length }} 条</span>
+              <span class="block-count">{{ recentTasks.length }} 鏉?/span>
             </div>
 
             <div v-if="recentTasks.length" class="task-timeline">
@@ -363,11 +369,11 @@ onMounted(() => {
                 <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.5"/>
                 <path d="M12 8v4M12 16h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
               </svg>
-              <p>暂无任务记录，创建自动化任务后会在这里展示执行态势。</p>
+              <p>鏆傛棤浠诲姟璁板綍锛屽垱寤鸿嚜鍔ㄥ寲浠诲姟鍚庝細鍦ㄨ繖閲屽睍绀烘墽琛屾€佸娍銆?/p>
             </div>
           </section>
 
-          <!-- 模块矩阵 -->
+          <!-- 妯″潡鐭╅樀 -->
           <section class="card-panel module-matrix">
             <div class="block-head">
               <div class="block-head-left">
@@ -377,9 +383,9 @@ onMounted(() => {
                   <rect x="3" y="14" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="2"/>
                   <rect x="14" y="14" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="2"/>
                 </svg>
-                <h3>模块矩阵</h3>
+                <h3>妯″潡鐭╅樀</h3>
               </div>
-              <span class="block-count">{{ openedModules.length }} 个已开通</span>
+              <span class="block-count">{{ openedModules.length }} 涓凡寮€閫?/span>
             </div>
             <div class="module-grid">
               <div v-for="item in openedModules" :key="item.moduleKey" class="module-card">
@@ -390,20 +396,20 @@ onMounted(() => {
                 </div>
                 <span class="mc-name">{{ item.name }}</span>
                 <span class="mc-badge" :class="item.category === 'enterprise' ? 'badge-blue' : 'badge-cyan'">
-                  {{ item.category === 'enterprise' ? '企业' : '个人' }}
+                  {{ item.category === 'enterprise' ? '浼佷笟' : '涓汉' }}
                 </span>
               </div>
             </div>
             <div v-if="!openedModules.length" class="empty-state">
-              <p>暂无已开通模块。</p>
+              <p>鏆傛棤宸插紑閫氭ā鍧椼€?/p>
             </div>
           </section>
         </div>
 
-        <!-- ── 底栏双列 ── -->
+        <!-- 鈹€鈹€ 搴曟爮鍙屽垪 鈹€鈹€ -->
         <div class="bottom-grid">
 
-          <!-- 报告中心 -->
+          <!-- 鎶ュ憡涓績 -->
           <section class="card-panel report-list">
             <div class="block-head">
               <div class="block-head-left">
@@ -411,9 +417,9 @@ onMounted(() => {
                   <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
                   <polyline points="14,2 14,8 20,8" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
                 </svg>
-                <h3>报告中心</h3>
+                <h3>鎶ュ憡涓績</h3>
               </div>
-              <span class="block-count">{{ reportCount }} 份</span>
+              <span class="block-count">{{ reportCount }} 浠?/span>
             </div>
             <a v-for="report in dashboard?.reports ?? []" :key="report.id" :href="report.url" class="report-row">
               <div class="report-row-icon">
@@ -429,20 +435,20 @@ onMounted(() => {
               <span class="format-tag">{{ report.format.toUpperCase() }}</span>
             </a>
             <div v-if="(dashboard?.reports ?? []).length === 0" class="empty-state">
-              <p>暂无报告，任务完成后将自动沉淀。</p>
+              <p>鏆傛棤鎶ュ憡锛屼换鍔″畬鎴愬悗灏嗚嚜鍔ㄦ矇娣€銆?/p>
             </div>
           </section>
 
-          <!-- 系统提醒 -->
+          <!-- 绯荤粺鎻愰啋 -->
           <section class="card-panel notice-list">
             <div class="block-head">
               <div class="block-head-left">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" class="block-icon">
                   <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                 </svg>
-                <h3>系统提醒</h3>
+                <h3>绯荤粺鎻愰啋</h3>
               </div>
-              <span class="block-count">{{ dashboard?.notifications.length ?? 0 }} 条</span>
+              <span class="block-count">{{ dashboard?.notifications.length ?? 0 }} 鏉?/span>
             </div>
             <article v-for="notice in dashboard?.notifications ?? []" :key="notice.id" class="notice-row">
               <div
@@ -464,14 +470,14 @@ onMounted(() => {
                       'tag-info': notice.level === 'info'
                     }"
                   >
-                    {{ notice.level === 'warning' ? '提醒' : notice.level === 'success' ? '完成' : '信息' }}
+                    {{ notice.level === 'warning' ? '鎻愰啋' : notice.level === 'success' ? '瀹屾垚' : '淇℃伅' }}
                   </span>
                 </div>
                 <p>{{ formatDateTime(notice.createdAt) }}</p>
               </div>
             </article>
             <div v-if="(dashboard?.notifications ?? []).length === 0" class="empty-state">
-              <p>暂无系统提醒。</p>
+              <p>鏆傛棤绯荤粺鎻愰啋銆?/p>
             </div>
           </section>
         </div>
@@ -482,16 +488,16 @@ onMounted(() => {
 </template>
 
 <style scoped>
-/* ╔══════════════════════════════════════════╗
-   ║  LOCAL DESIGN TOKENS                      ║
-   ╚══════════════════════════════════════════╝ */
+/* 鈺斺晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晽
+   鈺? LOCAL DESIGN TOKENS                      鈺?
+   鈺氣晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨暆 */
 .command-page {
   --cp-bg: transparent;
 }
 
-/* ╔══════════════════════════════════════════╗
-   ║  HERO                                     ║
-   ╚══════════════════════════════════════════╝ */
+/* 鈺斺晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晽
+   鈺? HERO                                     鈺?
+   鈺氣晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨暆 */
 .mission-hero {
   position: relative;
   overflow: hidden;
@@ -504,7 +510,7 @@ onMounted(() => {
   background: rgba(10, 16, 36, 0.85);
 }
 
-/* 背景层 */
+/* 鑳屾櫙灞?*/
 .hero-bg {
   position: absolute;
   inset: 0;
@@ -642,7 +648,7 @@ onMounted(() => {
   transform: translateY(-1px);
 }
 
-/* ── Score Ring ── */
+/* 鈹€鈹€ Score Ring 鈹€鈹€ */
 .hero-side {
   display: flex;
   align-items: center;
@@ -708,9 +714,9 @@ onMounted(() => {
   to   { transform: rotate(360deg); }
 }
 
-/* ╔══════════════════════════════════════════╗
-   ║  KPI CARDS                                ║
-   ╚══════════════════════════════════════════╝ */
+/* 鈺斺晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晽
+   鈺? KPI CARDS                                鈺?
+   鈺氣晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨暆 */
 .kpi-grid {
   display: grid;
   gap: 14px;
@@ -821,9 +827,9 @@ onMounted(() => {
 .dot-red    { background: var(--danger); }
 .dot-purple { background: #a78bfa; }
 
-/* ╔══════════════════════════════════════════╗
-   ║  BLOCK HEADER                             ║
-   ╚══════════════════════════════════════════╝ */
+/* 鈺斺晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晽
+   鈺? BLOCK HEADER                             鈺?
+   鈺氣晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨暆 */
 .block-head {
   display: flex;
   align-items: center;
@@ -861,9 +867,9 @@ onMounted(() => {
   padding: 3px 10px;
 }
 
-/* ╔══════════════════════════════════════════╗
-   ║  MAIN GRID + TASK TIMELINE                ║
-   ╚══════════════════════════════════════════╝ */
+/* 鈺斺晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晽
+   鈺? MAIN GRID + TASK TIMELINE                鈺?
+   鈺氣晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨暆 */
 .main-grid {
   display: grid;
   grid-template-columns: 1.3fr 1fr;
@@ -986,9 +992,9 @@ onMounted(() => {
 .status-pill.pending { color: var(--brand); background: var(--brand-glow);  border-color: rgba(79,142,247,0.35); }
 .status-pill.danger  { color: var(--danger);background: var(--danger-glow); border-color: rgba(248,113,113,0.35); }
 
-/* ╔══════════════════════════════════════════╗
-   ║  MODULE MATRIX                            ║
-   ╚══════════════════════════════════════════╝ */
+/* 鈺斺晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晽
+   鈺? MODULE MATRIX                            鈺?
+   鈺氣晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨暆 */
 .module-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1045,9 +1051,9 @@ onMounted(() => {
 .badge-blue { background: rgba(79,142,247,0.18); color: var(--brand); }
 .badge-cyan { background: rgba(34,211,238,0.12); color: var(--cyan); }
 
-/* ╔══════════════════════════════════════════╗
-   ║  BOTTOM GRID                              ║
-   ╚══════════════════════════════════════════╝ */
+/* 鈺斺晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晽
+   鈺? BOTTOM GRID                              鈺?
+   鈺氣晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨暆 */
 .bottom-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1182,9 +1188,9 @@ onMounted(() => {
 .tag-ok   { background: var(--ok-glow);   color: var(--ok); }
 .tag-info { background: var(--brand-glow); color: var(--brand); }
 
-/* ╔══════════════════════════════════════════╗
-   ║  EMPTY STATE                              ║
-   ╚══════════════════════════════════════════╝ */
+/* 鈺斺晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晽
+   鈺? EMPTY STATE                              鈺?
+   鈺氣晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨暆 */
 .empty-state {
   display: flex;
   flex-direction: column;
@@ -1200,9 +1206,9 @@ onMounted(() => {
   margin: 0;
 }
 
-/* ╔══════════════════════════════════════════╗
-   ║  RESPONSIVE                               ║
-   ╚══════════════════════════════════════════╝ */
+/* 鈺斺晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晽
+   鈺? RESPONSIVE                               鈺?
+   鈺氣晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨暆 */
 @media (max-width: 1240px) {
   .kpi-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1242,3 +1248,4 @@ onMounted(() => {
   }
 }
 </style>
+

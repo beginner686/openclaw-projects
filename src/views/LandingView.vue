@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, type Component } from 'vue'
 import { useRouter } from 'vue-router'
 import AuthModal from '@/components/AuthModal.vue'
 import { useAuthStore } from '@/stores/auth'
 import { moduleCatalog } from '@/config/modules'
+import { iconMap } from '@/config/icons'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -28,10 +29,14 @@ const imageModules = computed(() =>
 
 const handleAction = (type: 'login' | 'register') => {
   if (authStore.isAuthenticated) {
-    router.push({ name: 'customer' })
+    router.push(authStore.isAdmin ? { name: 'admin-dashboard' } : { name: 'customer' })
   } else {
     authModalRef.value?.open(type)
   }
+}
+
+function resolveModuleIcon(name: string): Component {
+  return (iconMap as Record<string, Component>)[name] ?? iconMap.Grid
 }
 
 // -------------------------------------
@@ -146,7 +151,7 @@ const handleMouseMove = (e: MouseEvent) => {
                 <img v-else-if="item.moduleKey === 'data-retrospective-automation'" src="../assets/module_data_review.png" class="custom-card-icon" />
                 <img v-else-if="item.moduleKey === 'anti-fraud-guardian'" src="../assets/module_anti_fraud.png" class="custom-card-icon" />
                 <img v-else-if="item.moduleKey === 'personal-invoice-manager'" src="../assets/module_personal_ticket.png" class="custom-card-icon" />
-                <el-icon v-else><component :is="item.icon" /></el-icon>
+                <el-icon v-else><component :is="resolveModuleIcon(item.icon)" /></el-icon>
               </div>
               <span class="card-blueprint-tag">{{ item.category === 'enterprise' ? 'Enterprise' : 'Personal' }}</span>
             </div>

@@ -32,7 +32,9 @@ export const useAuthStore = defineStore('auth', {
   }),
   getters: {
     isAuthenticated: (state) => Boolean(state.token && state.user),
+    isAdmin: (state) => state.user?.role === 'admin',
   },
+
   actions: {
     hydrate() {
       if (this.hydrated) {
