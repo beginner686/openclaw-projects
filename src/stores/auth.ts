@@ -1,6 +1,7 @@
-﻿import { defineStore } from 'pinia'
+import { defineStore } from 'pinia'
 import { loginRequest, logoutRequest, profileRequest, registerRequest, type LoginPayload, type RegisterPayload } from '@/api/auth'
 import type { AuthUser } from '@/types/domain'
+import { moduleCatalog } from '@/config/modules'
 import { clearSession, readStoredSession, saveSession } from '@/utils/session'
 
 interface AuthState {
@@ -8,6 +9,18 @@ interface AuthState {
   user: AuthUser | null
   hydrated: boolean
   remember: boolean
+}
+
+function normalizeUserModules(user: AuthUser) {
+  const allKeys = moduleCatalog.map((item) => item.moduleKey)
+  const enabled = new Set(user.enabledModules)
+  for (const key of allKeys) {
+    enabled.add(key)
+  }
+  return {
+    ...user,
+    enabledModules: allKeys.filter((key) => enabled.has(key)),
+  }
 }
 
 export const useAuthStore = defineStore('auth', {
@@ -29,8 +42,9 @@ export const useAuthStore = defineStore('auth', {
       const stored = readStoredSession()
       if (stored) {
         this.token = stored.token
-        this.user = stored.user
+        this.user = normalizeUserModules(stored.user)
         this.remember = stored.remember
+        saveSession({ token: this.token, user: this.user }, this.remember)
       }
 
       this.hydrated = true
@@ -39,19 +53,19 @@ export const useAuthStore = defineStore('auth', {
     async login(payload: LoginPayload) {
       const result = await loginRequest(payload)
       this.token = result.token
-      this.user = result.user
+      this.user = normalizeUserModules(result.user)
       this.remember = payload.remember
       this.hydrated = true
-      saveSession({ token: result.token, user: result.user }, payload.remember)
+      saveSession({ token: result.token, user: this.user }, payload.remember)
     },
 
     async register(payload: RegisterPayload) {
       const result = await registerRequest(payload)
       this.token = result.token
-      this.user = result.user
+      this.user = normalizeUserModules(result.user)
       this.remember = true
       this.hydrated = true
-      saveSession({ token: result.token, user: result.user }, true)
+      saveSession({ token: result.token, user: this.user }, true)
     },
 
     async refreshProfile() {
@@ -60,8 +74,8 @@ export const useAuthStore = defineStore('auth', {
       }
 
       const profile = await profileRequest()
-      this.user = profile
-      saveSession({ token: this.token, user: profile }, this.remember)
+      this.user = normalizeUserModules(profile)
+      saveSession({ token: this.token, user: this.user }, this.remember)
     },
 
     async logout() {

@@ -3,7 +3,7 @@ import { createBackendApp } from './src/app.js'
 const { app, env, stop } = await createBackendApp()
 
 const server = app.listen(env.port, () => {
-  console.log(`OpenClaw backend is running at http://localhost:${env.port}`)
+  console.log(`ClawPilot backend is running at http://localhost:${env.port}`)
 })
 
 async function gracefulShutdown(signal) {
