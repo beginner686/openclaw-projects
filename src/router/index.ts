@@ -80,7 +80,7 @@ router.beforeEach((to) => {
   if (to.meta.requiresAuth && !auth.isAuthenticated) {
     return {
       path: '/',
-      query: { auth: 'login', redirect: to.fullPath },
+      query: { redirect: to.fullPath },
     }
   }
 

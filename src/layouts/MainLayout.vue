@@ -48,7 +48,7 @@ function resolveModuleIcon(name: string): Component {
 
 async function onLogout() {
   await auth.logout()
-  void router.push({ path: '/', query: { auth: 'login' } })
+  void router.push({ path: '/' })
 }
 
 watch(

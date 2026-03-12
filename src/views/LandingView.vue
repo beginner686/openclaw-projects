@@ -1,25 +1,30 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
+import { computed, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import AuthModal from '@/components/AuthModal.vue'
 import { useAuthStore } from '@/stores/auth'
 import { moduleCatalog } from '@/config/modules'
 
 const router = useRouter()
-const route = useRoute()
 const authStore = useAuthStore()
 
 const authModalRef = ref<InstanceType<typeof AuthModal> | null>(null)
 const matrixGridRef = ref<HTMLElement | null>(null)
+const imageOnlyModuleKeys = new Set([
+  'invoice-recovery-archive',
+  'debt-evidence-manager',
+  'enterprise-marketing-automation',
+  'public-opinion-monitoring',
+  'lead-capture-followup',
+  'private-domain-operations',
+  'data-retrospective-automation',
+  'anti-fraud-guardian',
+  'personal-invoice-manager',
+])
 
-// 拦截URL直接触发 Modal
-onMounted(() => {
-  if (route.query.auth === 'login') {
-    authModalRef.value?.open('login')
-  } else if (route.query.auth === 'register') {
-    authModalRef.value?.open('register')
-  }
-})
+const imageModules = computed(() =>
+  moduleCatalog.filter((item) => imageOnlyModuleKeys.has(item.moduleKey)),
+)
 
 const handleAction = (type: 'login' | 'register') => {
   if (authStore.isAuthenticated) {
@@ -120,7 +125,7 @@ const handleMouseMove = (e: MouseEvent) => {
       <div class="arsenal-grid" ref="matrixGridRef" @mousemove="handleMouseMove">
         
         <div 
-          v-for="item in moduleCatalog" 
+          v-for="item in imageModules" 
           :key="item.moduleKey" 
           class="spotlight-card"
         >
