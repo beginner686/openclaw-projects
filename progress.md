@@ -36,6 +36,21 @@
   - 新增前端旧 key -> 新 key 兼容映射，历史会话可平滑过渡
 - 验证：
   - `npm run build` 通过
+- Phase 4 已推进（后端回归测试）：
+  - 新增 `server/tests/auth-service.test.js`（登录/注册关键路径）
+  - 新增 `server/tests/task-service.test.js`（旧 key 兼容、边界输入约束）
+  - 新增 `server/tests/anti-fraud-service.test.js`（新增错误码与参数校验）
+  - 更新 `package.json`：`test:server` 改为 `node --test "server/tests/**/*.test.js"`
+- 回归修复：
+  - 修复 `server/src/services/task-service.js`：
+    - 恢复 `normalizeModuleKey` 在访问控制中的归一化
+    - 恢复场景/输入/附件数量边界校验
+    - 修复历史查询使用未归一化 key 的问题
+  - 修复 `server/src/services/auth-service.js`：
+    - 保留管理员全模块开通
+    - 恢复客户默认包含 `anti-fraud-guardian` 与 `smart-grocery-supermarket`
+- 验证：
+  - `npm run test:server` 通过（15/15）
 - Phase 3 进行中（后端输入校验与错误处理增强已完成）：
   - 修改 `server/src/services/anti-fraud-service.js`：
     - 新增月份、周期、场景、目标字段、ID 等校验

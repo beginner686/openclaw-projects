@@ -35,6 +35,7 @@
   - 后端核心服务/路由测试（auth、module task、anti-fraud）
   - 前端关键交互冒烟测试（登录、模块进入、反诈核心流程）
   - 验收：CI/本地可执行，核心场景有自动化保障
+  - 进度：后端核心服务回归测试已落地并通过；前端冒烟自动化待补
 - [ ] Phase 5 (P1, D6): 发布前运维与文档完善
   - 明确环境变量、备份恢复、初始化流程
   - 补齐上线检查清单（合规文案、日志、告警）
@@ -63,7 +64,11 @@
 - 测试补齐会暴露现有边界缺陷，需预留修复缓冲。
 
 ## Errors Encountered
-- 暂无（本轮计划阶段）。
+- `npm run test:server` 初始命令路径不兼容：`node --test server/tests` 在当前 Node 版本被解析为模块路径，已调整为 `node --test "server/tests/**/*.test.js"`。
+- 代码冲突后遗留回归：
+  - `task-service` 出现 `normalizedModuleKey is not defined`。
+  - `auth-service` 客户注册默认模块缺少反诈/买菜模块。
+  - 已在本轮修复并通过回归测试验证。
 
 ---
 

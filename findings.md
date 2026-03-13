@@ -58,3 +58,17 @@
   - 新鲜度图片名长度
 - 通用任务页新增前置校验：
   - 场景、输入、附件数量边界
+
+## 2026-03-13 Phase 4（后端回归测试）阶段结果
+- 新增 Node 内置测试回归集（`node:test`）：
+  - `server/tests/auth-service.test.js`
+  - `server/tests/task-service.test.js`
+  - `server/tests/anti-fraud-service.test.js`
+- 测试执行命令标准化为：
+  - `npm run test:server` -> `node --test "server/tests/**/*.test.js"`
+- 回归测试识别并促成修复的缺陷：
+  - `task-service` 模块 key 归一化丢失，触发 `normalizedModuleKey` 未定义与兼容失败。
+  - `task-service` 场景/输入/附件边界校验在合并后丢失。
+  - `auth-service` 客户注册默认模块在合并后缺少 `anti-fraud-guardian` 与 `smart-grocery-supermarket`。
+- 当前结果：
+  - 后端回归测试 15/15 通过。

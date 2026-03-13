@@ -8,6 +8,7 @@ function createTaskContext(overrides = {}) {
   }
 
   const dataRepository = {
+    findModuleSettings: async () => null,
     createTask: async (task) => {
       calls.createTask.push(task)
     },

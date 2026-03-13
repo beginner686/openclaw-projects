@@ -61,10 +61,16 @@ export function createAuthService({ dataRepository, securityService, moduleCatal
       return fail(409, 'AUTH_CONTACT_ALREADY_EXISTS', '该账号已存在。')
     }
 
-    // 管理员默认开通全部模块，客户开通前10个
+    // 管理员默认开通全部模块，客户开通前10个并强制包含重点模块
     const enabledModules = safeRole === 'admin'
       ? moduleCatalog.map((item) => item.moduleKey)
-      : moduleCatalog.slice(0, 10).map((item) => item.moduleKey)
+      : [
+        ...new Set([
+          ...moduleCatalog.slice(0, 10).map((item) => item.moduleKey),
+          'anti-fraud-guardian',
+          'smart-grocery-supermarket',
+        ]),
+      ]
     const user = securityService.createStoredUser({
       id: securityService.createUserId(),
       name: safeName,

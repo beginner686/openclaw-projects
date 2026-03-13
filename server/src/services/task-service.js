@@ -65,11 +65,12 @@ export function createTaskService({
   }
 
   function assertModuleAccess(user, moduleKey) {
-    if (!getModuleExists(moduleKey)) {
-      return fail(404, 'MODULE_NOT_FOUND', 'Module not found.')
+    const normalizedModuleKey = normalizeModuleKey(moduleKey)
+    if (!getModuleExists(normalizedModuleKey)) {
+      return fail(404, 'MODULE_NOT_FOUND', '业务模块不存在。')
     }
-    if (!user.enabledModules.includes(moduleKey)) {
-      return fail(403, 'MODULE_FORBIDDEN', 'Current account has no access to this module.')
+    if (!user.enabledModules.includes(normalizedModuleKey)) {
+      return fail(403, 'MODULE_FORBIDDEN', '当前账号未开通该业务。')
     }
     return { ok: true, moduleKey: normalizedModuleKey }
   }
@@ -342,10 +343,19 @@ export function createTaskService({
       : []
 
     if (!scenario || !inputText) {
-      return { error: fail(400, 'TASK_INVALID_PAYLOAD', 'Scenario and input text are required.') }
+      return { error: fail(400, 'TASK_INVALID_PAYLOAD', '请填写任务场景和输入内容。') }
+    }
+    if (scenario.length > MAX_SCENARIO_LENGTH) {
+      return { error: fail(400, 'TASK_SCENARIO_TOO_LONG', `任务场景长度不能超过 ${MAX_SCENARIO_LENGTH} 字符。`) }
+    }
+    if (inputText.length > MAX_INPUT_LENGTH) {
+      return { error: fail(400, 'TASK_INPUT_TOO_LONG', `任务输入内容不能超过 ${MAX_INPUT_LENGTH} 字符。`) }
+    }
+    if (attachments.length > MAX_ATTACHMENTS) {
+      return { error: fail(400, 'TASK_ATTACHMENTS_TOO_MANY', `附件数量不能超过 ${MAX_ATTACHMENTS} 个。`) }
     }
 
-    const runtime = await getModuleRuntime(moduleKey)
+    const runtime = await getModuleRuntime(normalizedModuleKey)
     const mode = runtime.execution.mode
     const hasRiskSignal = includesToken(inputText, runtime.rule.riskSignals)
 
@@ -401,7 +411,7 @@ export function createTaskService({
     }
     const normalizedModuleKey = access.moduleKey
 
-    const rows = await dataRepository.listTasksByUserAndModule(user.id, moduleKey, 12)
+    const rows = await dataRepository.listTasksByUserAndModule(user.id, normalizedModuleKey, 12)
     const history = await Promise.all(rows.map((task) => toClientTask(task, user.id)))
     return { data: history }
   }
