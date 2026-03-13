@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "dev:client": "vite",
+    "dev:client:proxy": "node scripts/frontend-proxy-server.mjs",
     "dev:server": "node --env-file=server/.env --watch server/index.js",
     "dev:full": "concurrently \"npm:dev:server\" \"npm:dev:client\"",
     "server": "node --env-file=server/.env server/index.js",

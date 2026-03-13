@@ -18,8 +18,15 @@ const runningTaskCount = computed(
 
 const openedModules = computed(() =>
   (dashboard.value?.openedModules ?? [])
-    .map((moduleKey) => moduleMap.get(moduleKey))
-    .filter((item): item is NonNullable<typeof item> => Boolean(item)),
+    .map((moduleKey) => moduleMap.get(moduleKey) ?? ({
+      moduleKey,
+      name: moduleKey,
+      category: 'enterprise',
+      description: '',
+      icon: 'Grid',
+      status: 'beta',
+      mobileSupported: true,
+    })),
 )
 
 async function loadDashboard() {

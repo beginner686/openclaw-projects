@@ -1,7 +1,6 @@
 import { defineStore } from 'pinia'
 import { loginRequest, logoutRequest, profileRequest, registerRequest, type LoginPayload, type RegisterPayload } from '@/api/auth'
 import type { AuthUser } from '@/types/domain'
-import { moduleCatalog } from '@/config/modules'
 import { clearSession, readStoredSession, saveSession } from '@/utils/session'
 
 interface AuthState {
@@ -18,14 +17,17 @@ const legacyModuleKeyMap: Record<string, string> = {
 }
 
 function normalizeUserModules(user: AuthUser) {
-  const allKeys = new Set(moduleCatalog.map((item) => item.moduleKey))
-  const enabled = user.enabledModules
-    .map((item) => legacyModuleKeyMap[item] ?? item)
-    .filter((item) => allKeys.has(item))
-
+  const enabled = new Set(
+    (user.enabledModules ?? [])
+      .map((item) => {
+        const normalized = String(item).trim()
+        return legacyModuleKeyMap[normalized] ?? normalized
+      })
+      .filter(Boolean),
+  )
   return {
     ...user,
-    enabledModules: [...new Set(enabled)],
+    enabledModules: [...enabled],
   }
 }
 

@@ -64,10 +64,21 @@ const activeMenu = computed(() => String(route.name ?? ''))
 
 <style scoped>
 .module-admin-shell {
+  --bg-base: #f3f6fb;
+  --bg-panel: #ffffff;
+  --bg-soft: #f8faff;
+  --text-body: #1f2a44;
+  --text-strong: #0f172a;
+  --text-muted: #5f6b84;
+  --brand: #d45132;
+  --brand-deep: #b33e24;
+  --line: #e5eaf3;
+
   display: flex;
   flex-direction: column;
   flex: 1;
-  background: var(--bg-base, #f5f7fa);
+  background: var(--bg-base);
+  color: var(--text-body);
 }
 
 .module-topbar {
@@ -76,8 +87,9 @@ const activeMenu = computed(() => String(route.name ?? ''))
   align-items: center;
   justify-content: space-between;
   padding: 0 20px;
-  background: rgba(224, 48, 32, 0.05);
-  border-bottom: 1px solid var(--line, #e8eaed);
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--line);
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.04);
 }
 
 .topbar-left {
@@ -88,30 +100,30 @@ const activeMenu = computed(() => String(route.name ?? ''))
 
 .back-btn {
   background: none;
-  border: 1px solid var(--line, #e0e0e0);
+  border: 1px solid var(--line);
   border-radius: 6px;
   padding: 4px 12px;
   font-size: 0.85rem;
   cursor: pointer;
-  color: var(--text-body, #444);
+  color: var(--text-body);
   transition: all 0.2s;
 }
 
 .back-btn:hover {
-  background: var(--bg-base, #f5f5f5);
-  border-color: var(--brand, #e03020);
-  color: var(--brand, #e03020);
+  background: var(--bg-soft);
+  border-color: var(--brand);
+  color: var(--brand);
 }
 
 .module-title {
   font-weight: 600;
   font-size: 0.95rem;
-  color: var(--brand-deep, #c03020);
+  color: var(--brand-deep);
 }
 
 .topbar-actions {
   font-size: 0.88rem;
-  color: var(--text-muted, #888);
+  color: var(--text-muted);
 }
 
 .module-body {
@@ -123,8 +135,8 @@ const activeMenu = computed(() => String(route.name ?? ''))
 .module-sidebar {
   width: 180px;
   flex-shrink: 0;
-  background: var(--bg-panel, #fff);
-  border-right: 1px solid var(--line, #e8eaed);
+  background: var(--bg-panel);
+  border-right: 1px solid var(--line);
   padding: 12px 0;
   overflow-y: auto;
 }
@@ -141,21 +153,21 @@ const activeMenu = computed(() => String(route.name ?? ''))
   gap: 8px;
   padding: 10px 16px;
   font-size: 0.9rem;
-  color: var(--text-body, #444);
+  color: var(--text-body);
   text-decoration: none;
   transition: background 0.15s, color 0.15s;
 }
 
 .menu-item:hover {
-  background: var(--bg-base, #f8f9fa);
-  color: var(--brand, #e03020);
+  background: var(--bg-soft);
+  color: var(--brand);
 }
 
 .menu-item.active {
-  background: rgba(224, 48, 32, 0.08);
-  color: var(--brand, #e03020);
+  background: rgba(212, 81, 50, 0.1);
+  color: var(--brand);
   font-weight: 600;
-  border-right: 3px solid var(--brand, #e03020);
+  border-right: 3px solid var(--brand);
 }
 
 .menu-icon {

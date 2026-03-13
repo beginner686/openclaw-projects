@@ -4,14 +4,14 @@ import morgan from 'morgan'
 import { env, validateEnvOrThrow } from './config/env.js'
 import { paths } from './config/paths.js'
 import { getModuleKeyVariants, getModuleName, getModuleRule, moduleCatalog, normalizeModuleKey } from './config/catalog.js'
+import { registerGeneratedModule } from './config/dynamic-module-registry.js'
 import { createDataRepository } from './repositories/data-repository.js'
 import { createSecurityService } from './services/security-service.js'
 import { createReportService } from './services/report-service.js'
 import { createTaskService } from './services/task-service.js'
+import { createModuleLogicService } from './services/module-logic-service.js'
 import { createAuthService } from './services/auth-service.js'
 import { createDashboardService } from './services/dashboard-service.js'
-import { createAntiFraudService } from './services/anti-fraud-service.js'
-import { createGroceryService } from './services/grocery-service.js'
 import { createAuthMiddleware } from './middleware/auth-middleware.js'
 import { createAuthRoutes } from './routes/auth-routes.js'
 import { createCustomerRoutes } from './routes/customer-routes.js'
@@ -26,6 +26,7 @@ export async function createBackendApp() {
   validateEnvOrThrow(env)
 
   const securityService = createSecurityService({ env })
+  const moduleLogicService = createModuleLogicService()
   const dataRepository = createDataRepository({
     env,
     paths,
@@ -39,6 +40,7 @@ export async function createBackendApp() {
     paths,
     getModuleName,
     getModuleRule,
+    moduleLogicService,
     securityService,
     dataRepository,
   })
@@ -48,6 +50,7 @@ export async function createBackendApp() {
     getModuleName,
     getModuleRule,
     normalizeModuleKey,
+    moduleLogicService,
     dataRepository,
     reportService,
   })
@@ -81,6 +84,22 @@ export async function createBackendApp() {
   })
 
   await dataRepository.ensureInitialized()
+  const customModules = await dataRepository.listCustomModules()
+  for (const item of customModules) {
+    registerGeneratedModule({
+      module: {
+        moduleKey: item.moduleKey,
+        name: item.name,
+        category: item.category,
+        description: item.description,
+        icon: item.icon,
+        status: item.status,
+        mobileSupported: item.mobileSupported,
+      },
+      blueprint: item.blueprint,
+      executionRule: item.executionRule,
+    })
+  }
   await taskService.reconcileDatabase()
   taskService.startWorker()
 

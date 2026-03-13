@@ -13,6 +13,7 @@ const menuItems = [
   { name: 'admin-users', path: '/admin/users', label: '用户管理', icon: '👥' },
   { name: 'admin-tasks', path: '/admin/tasks', label: '任务中心', icon: '🧭' },
   { name: 'admin-modules', path: '/admin/modules', label: '模块中心', icon: '🧩' },
+  { name: 'admin-module-factory', path: '/admin/module-factory', label: '模块生成器', icon: '🏗️' },
 ]
 
 const activeMenu = computed(() => String(route.name ?? ''))
@@ -67,10 +68,21 @@ async function logout() {
 
 <style scoped>
 .admin-shell {
+  --bg-base: #f3f6fb;
+  --bg-panel: #ffffff;
+  --bg-soft: #f8faff;
+  --text-body: #1f2a44;
+  --text-strong: #0f172a;
+  --text-muted: #5f6b84;
+  --brand: #d45132;
+  --brand-deep: #b33e24;
+  --line: #e5eaf3;
+
   display: flex;
   flex-direction: column;
   min-height: 100vh;
-  background: var(--bg-base, #f5f7fa);
+  background: var(--bg-base);
+  color: var(--text-body);
 }
 
 .admin-topbar {
@@ -79,8 +91,9 @@ async function logout() {
   align-items: center;
   justify-content: space-between;
   padding: 0 24px;
-  background: var(--bg-panel, #fff);
-  border-bottom: 1px solid var(--line, #e8eaed);
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--line);
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.04);
 }
 
 .topbar-brand {
@@ -99,7 +112,7 @@ async function logout() {
 
 .back-link {
   font-size: 0.88rem;
-  color: var(--text-muted, #666);
+  color: var(--text-muted);
   text-decoration: none;
 }
 
@@ -117,8 +130,8 @@ async function logout() {
 .admin-sidebar {
   width: 220px;
   flex-shrink: 0;
-  background: var(--bg-panel, #fff);
-  border-right: 1px solid var(--line, #e8eaed);
+  background: var(--bg-panel);
+  border-right: 1px solid var(--line);
   padding: 16px 0;
 }
 
@@ -133,15 +146,21 @@ async function logout() {
   align-items: center;
   gap: 10px;
   padding: 11px 20px;
-  color: var(--text-body, #444);
+  color: var(--text-body);
   text-decoration: none;
+  transition: background 0.2s, color 0.2s;
+}
+
+.menu-item:hover {
+  background: var(--bg-soft);
+  color: var(--brand);
 }
 
 .menu-item.active {
-  background: rgba(224, 48, 32, 0.08);
-  color: var(--brand, #e03020);
+  background: rgba(212, 81, 50, 0.1);
+  color: var(--brand);
   font-weight: 600;
-  border-right: 3px solid var(--brand, #e03020);
+  border-right: 3px solid var(--brand);
 }
 
 .admin-content {

@@ -22,10 +22,11 @@ export function createSecurityService({ env }) {
     return bcrypt.compareSync(toPepperedPassword(rawPassword), storedUser.passwordHash)
   }
 
-  function createStoredUser({ id, name, contact, password, enabledModules, role = 'customer' }) {
+  function createStoredUser({ id, name, contact, password, enabledModules, role = 'customer', tenantId = '' }) {
     const salt = randomBytes(16).toString('hex')
     return {
       id,
+      tenantId: String(tenantId || `t-${id}`).slice(0, 64),
       name,
       contact: contact.toLowerCase(),
       passwordSalt: salt,
