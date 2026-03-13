@@ -60,7 +60,13 @@ export function createAuthService({ dataRepository, securityService, moduleCatal
       return fail(409, 'AUTH_CONTACT_ALREADY_EXISTS', '该账号已存在。')
     }
 
-    const enabledModules = moduleCatalog.slice(0, 10).map((item) => item.moduleKey)
+    const enabledModules = [
+      ...new Set([
+        ...moduleCatalog.slice(0, 10).map((item) => item.moduleKey),
+        'anti-fraud-guardian',
+        'smart-grocery-supermarket',
+      ]),
+    ]
     const user = securityService.createStoredUser({
       id: securityService.createUserId(),
       name: safeName,

@@ -5,6 +5,8 @@ import { ElMessage } from 'element-plus'
 import type { UploadProps, UploadUserFile } from 'element-plus'
 import { moduleMap } from '@/config/modules'
 import { fetchModuleHistory, fetchModuleTask, runModuleTask } from '@/api/modules'
+import AntiFraudGuardianView from '@/views/AntiFraudGuardianView.vue'
+import SmartGroceryView from '@/views/SmartGroceryView.vue'
 import { useAuthStore } from '@/stores/auth'
 import type { ModuleTaskResult } from '@/types/domain'
 
@@ -17,6 +19,10 @@ const scenarioList = [
   '高安全模式',
   '批量任务',
 ]
+
+const MAX_SCENARIO_LENGTH = 60
+const MAX_INPUT_LENGTH = 6000
+const MAX_ATTACHMENTS = 10
 
 const taskForm = reactive({
   scenario: '标准流程',
@@ -37,6 +43,9 @@ const pollAttempts = ref(0)
 const moduleKey = computed(() => String(route.params.moduleKey ?? ''))
 const moduleMeta = computed(() => moduleMap.get(moduleKey.value))
 const hasAccess = computed(() => auth.user?.enabledModules.includes(moduleKey.value) ?? false)
+const isAntiFraudModule = computed(() => moduleKey.value === 'anti-fraud-guardian')
+const isSmartGroceryModule = computed(() => moduleKey.value === 'smart-grocery-supermarket')
+const isDedicatedModule = computed(() => isAntiFraudModule.value || isSmartGroceryModule.value)
 
 const onUploadChange: UploadProps['onChange'] = (file, files) => {
   uploadList.value = files.slice(-5)
@@ -47,7 +56,7 @@ const onUploadChange: UploadProps['onChange'] = (file, files) => {
 }
 
 async function loadHistory() {
-  if (!moduleMeta.value || !hasAccess.value) {
+  if (!moduleMeta.value || !hasAccess.value || isDedicatedModule.value) {
     return
   }
 
@@ -103,7 +112,7 @@ function scheduleNextPoll() {
 }
 
 async function pollLatestTask() {
-  if (!latestTaskId.value || !moduleMeta.value || !hasAccess.value) {
+  if (!latestTaskId.value || !moduleMeta.value || !hasAccess.value || isDedicatedModule.value) {
     stopPolling()
     return
   }
@@ -149,8 +158,23 @@ async function submitTask() {
     return
   }
 
-  if (!taskForm.inputText.trim()) {
+  const scenario = taskForm.scenario.trim()
+  const inputText = taskForm.inputText.trim()
+
+  if (!scenario || !inputText) {
     ElMessage.warning('请填写任务输入内容。')
+    return
+  }
+  if (scenario.length > MAX_SCENARIO_LENGTH) {
+    ElMessage.warning(`任务场景长度不能超过 ${MAX_SCENARIO_LENGTH} 字符。`)
+    return
+  }
+  if (inputText.length > MAX_INPUT_LENGTH) {
+    ElMessage.warning(`任务输入不能超过 ${MAX_INPUT_LENGTH} 字符。`)
+    return
+  }
+  if (taskForm.attachments.length > MAX_ATTACHMENTS) {
+    ElMessage.warning(`附件数量不能超过 ${MAX_ATTACHMENTS} 个。`)
     return
   }
 
@@ -160,8 +184,8 @@ async function submitTask() {
   try {
     const result = await runModuleTask({
       moduleKey: moduleKey.value,
-      scenario: taskForm.scenario,
-      inputText: taskForm.inputText,
+      scenario,
+      inputText,
       attachments: taskForm.attachments,
     })
 
@@ -225,7 +249,11 @@ onUnmounted(() => {
       title="当前账号未开通该业务，请在客户中心查看权限。"
     />
 
-    <div class="module-grid" v-if="moduleMeta && hasAccess">
+    <AntiFraudGuardianView v-if="moduleMeta && hasAccess && isAntiFraudModule" />
+
+    <SmartGroceryView v-if="moduleMeta && hasAccess && isSmartGroceryModule" />
+
+    <div class="module-grid" v-if="moduleMeta && hasAccess && !isDedicatedModule">
       <section class="card-panel task-form-panel">
         <h3>任务配置</h3>
         <el-form label-position="top">

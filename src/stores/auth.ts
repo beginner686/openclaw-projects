@@ -11,15 +11,21 @@ interface AuthState {
   remember: boolean
 }
 
+const legacyModuleKeyMap: Record<string, string> = {
+  'matchmaking-ai': 'matchmaking-assistant',
+  'job-lead-capture': 'job-lead-automation',
+  'content-auto-publishing': 'content-generation-publisher',
+}
+
 function normalizeUserModules(user: AuthUser) {
-  const allKeys = moduleCatalog.map((item) => item.moduleKey)
-  const enabled = new Set(user.enabledModules)
-  for (const key of allKeys) {
-    enabled.add(key)
-  }
+  const allKeys = new Set(moduleCatalog.map((item) => item.moduleKey))
+  const enabled = user.enabledModules
+    .map((item) => legacyModuleKeyMap[item] ?? item)
+    .filter((item) => allKeys.has(item))
+
   return {
     ...user,
-    enabledModules: allKeys.filter((key) => enabled.has(key)),
+    enabledModules: [...new Set(enabled)],
   }
 }
 

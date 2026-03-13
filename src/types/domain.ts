@@ -68,3 +68,142 @@ export interface AuthResponse {
 export interface ApiMessage {
   message: string
 }
+
+export interface AntiFraudPlan {
+  planCode: 'basic' | 'standard' | 'enterprise'
+  planName: string
+  monthlyPrice: number
+  maxTargets: number
+  reportFrequency: 'weekly' | 'daily'
+  realtimeAlerts: boolean
+  productScreening: boolean
+  complaintQuotaMonth: number
+}
+
+export interface AntiFraudSubscription {
+  ownerId: string
+  planCode: string
+  planName: string
+  status: 'active' | 'paused' | 'expired'
+  startsAt: string
+  expiresAt: string
+  maxTargets: number
+  reportFrequency: string
+  realtimeAlerts: boolean
+  productScreening: boolean
+  complaintQuotaMonth: number
+  createdAt: string
+  updatedAt: string
+}
+
+export interface AntiFraudUsage {
+  targetCount: number
+  targetQuota: number
+  complaintUsed: number
+  complaintQuota: number
+  evidenceCount: number
+  complaintRemaining: number
+}
+
+export interface AntiFraudTarget {
+  targetId: string
+  ownerId: string
+  targetType: string
+  platform: string
+  anchorName: string
+  accountHandle: string
+  roomLink: string
+  notes: string
+  status: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface AntiFraudScan {
+  scanId: string
+  ownerId: string
+  targetId: string
+  sourceTitle: string
+  sourceLink: string
+  contentText: string
+  riskLevel: 'low' | 'medium' | 'high'
+  riskScore: number
+  riskTags: string[]
+  hitPhrases: string[]
+  summary: string
+  safeAdvice: string
+  createdAt: string
+}
+
+export interface AntiFraudEvidence {
+  evidenceId: string
+  ownerId: string
+  scanId: string
+  targetId: string
+  sourceLink: string
+  capturedAt: string
+  violationPoints: string[]
+  snapshotText: string
+  status: string
+  createdAt: string
+}
+
+export interface AntiFraudReport {
+  reportId: string
+  ownerId: string
+  periodType: 'weekly' | 'monthly'
+  periodStart: string
+  periodEnd: string
+  overview: {
+    totalScanned: number
+    highRiskCount: number
+    mediumRiskCount: number
+    lowRiskCount: number
+  }
+  highRiskItems: Array<{
+    scanId: string
+    sourceTitle?: string
+    title?: string
+    riskLevel: string
+    hitPhrases?: string[]
+  }>
+  safeItems: Array<{
+    scanId: string
+    sourceTitle?: string
+    title?: string
+    riskLevel?: string
+  }>
+  recommendations: string[]
+  createdAt: string
+}
+
+export interface AntiFraudComplaint {
+  complaintId: string
+  ownerId: string
+  status: string
+  scenario: string
+  evidenceIds: string[]
+  transactionNotes: string
+  factsSummary: string
+  generatedText: string
+  channelSuggestions: string[]
+  createdAt: string
+  updatedAt: string
+}
+
+export interface AntiFraudDashboardData {
+  subscription: AntiFraudSubscription
+  usage: AntiFraudUsage
+  stats: {
+    targets: number
+    scans: number
+    highRisk: number
+    mediumRisk: number
+    evidences: number
+    reports: number
+    complaints: number
+  }
+  latestRisks: AntiFraudScan[]
+  latestEvidences: AntiFraudEvidence[]
+  latestReports: AntiFraudReport[]
+}

@@ -1,3 +1,25 @@
+const legacyModuleKeyMap = {
+  'matchmaking-ai': 'matchmaking-assistant',
+  'job-lead-capture': 'job-lead-automation',
+  'content-auto-publishing': 'content-generation-publisher',
+}
+
+export function normalizeModuleKey(moduleKey) {
+  const key = String(moduleKey ?? '')
+  return legacyModuleKeyMap[key] ?? key
+}
+
+export function getModuleKeyVariants(moduleKey) {
+  const normalized = normalizeModuleKey(moduleKey)
+  const variants = [normalized]
+  for (const [legacyKey, canonicalKey] of Object.entries(legacyModuleKeyMap)) {
+    if (canonicalKey === normalized) {
+      variants.push(legacyKey)
+    }
+  }
+  return [...new Set(variants)]
+}
+
 export const moduleCatalog = [
   {
     moduleKey: 'invoice-recovery-archive',
@@ -72,7 +94,7 @@ export const moduleCatalog = [
     mobileSupported: true,
   },
   {
-    moduleKey: 'matchmaking-ai',
+    moduleKey: 'matchmaking-assistant',
     name: '高学历相亲 AI 自动匹配',
     category: 'personal',
     description: '基于偏好与约束条件自动匹配候选人，并推送提醒。',
@@ -91,10 +113,19 @@ export const moduleCatalog = [
   },
   {
     moduleKey: 'anti-fraud-guardian',
-    name: '个人反诈守护',
+    name: '全域反诈守护',
     category: 'personal',
-    description: '识别可疑话术、链接与账号行为，提示潜在诈骗风险。',
+    description: 'AI 中老年健康信息净化器 + 防骗证据助手，支持风险识别、存证与投诉材料整理。',
     icon: 'Lock',
+    status: 'active',
+    mobileSupported: true,
+  },
+  {
+    moduleKey: 'smart-grocery-supermarket',
+    name: '智慧买菜 / 超市',
+    category: 'personal',
+    description: '家庭买菜省钱 AI，支持比价、预算控餐、菜谱与特价提醒。',
+    icon: 'Grid',
     status: 'active',
     mobileSupported: true,
   },
@@ -117,7 +148,7 @@ export const moduleCatalog = [
     mobileSupported: true,
   },
   {
-    moduleKey: 'job-lead-capture',
+    moduleKey: 'job-lead-automation',
     name: '个人求职线索自动抓取',
     category: 'personal',
     description: '自动抓取职位线索并按匹配度整理投递优先级。',
@@ -126,7 +157,7 @@ export const moduleCatalog = [
     mobileSupported: true,
   },
   {
-    moduleKey: 'content-auto-publishing',
+    moduleKey: 'content-generation-publisher',
     name: '个人内容自动生成与发布',
     category: 'personal',
     description: '按内容主题自动生成多平台文案并计划发布节奏。',
@@ -185,7 +216,7 @@ export const moduleExecutionRules = {
     failSignals: ['聚合失败'],
     nextActions: ['补全缺失指标后重新复盘。', '将异常波动拆解到业务环节。'],
   },
-  'matchmaking-ai': {
+  'matchmaking-assistant': {
     focusChecks: ['偏好匹配度', '约束条件冲突', '候选池质量'],
     riskSignals: ['匹配不足', '条件冲突', '画像缺失'],
     failSignals: ['候选池为空'],
@@ -198,10 +229,16 @@ export const moduleExecutionRules = {
     nextActions: ['对高风险条目优先整改并复检。', '补充缺失资质信息。'],
   },
   'anti-fraud-guardian': {
-    focusChecks: ['风险话术识别', '链接可信度校验', '账号行为异常检测'],
-    riskSignals: ['转账', '验证码', '退款', '陌生链接', '诈骗'],
+    focusChecks: ['夸大宣传识别', '造焦虑话术识别', '证据链完整性校验'],
+    riskSignals: ['包治百病', '不用吃药', '医院没法治', '降压', '降糖', '溶栓', '通血管', '所有医生都不知道的秘密'],
     failSignals: ['风控服务异常'],
-    nextActions: ['出现高风险信号时立即中断交易流程。', '保留证据并进行人工核验。'],
+    nextActions: ['高风险内容优先存证并提醒家人停止购买。', '按事实整理投诉材料，提交 12315 或平台举报。'],
+  },
+  'smart-grocery-supermarket': {
+    focusChecks: ['规格统一换算', '平台价格对比', '预算可执行性'],
+    riskSignals: ['价格异常', '临期风险', '超预算'],
+    failSignals: ['价格源不可达'],
+    nextActions: ['优先购买同类最低单价商品。', '基于家庭预算调整菜谱与采购组合。'],
   },
   'personal-invoice-manager': {
     focusChecks: ['票据分类准确性', '报销字段完整性', '重复票据识别'],
@@ -215,13 +252,13 @@ export const moduleExecutionRules = {
     failSignals: ['投稿通道异常'],
     nextActions: ['按平台要求优化标题与摘要。', '围绕高反馈主题持续迭代内容。'],
   },
-  'job-lead-capture': {
+  'job-lead-automation': {
     focusChecks: ['职位匹配度', '投递优先级', '反馈跟踪完整性'],
     riskSignals: ['低匹配', '反馈滞后', '岗位过期'],
     failSignals: ['职位抓取失败'],
     nextActions: ['优先投递高匹配岗位并跟进结果。', '定期清理过期职位线索。'],
   },
-  'content-auto-publishing': {
+  'content-generation-publisher': {
     focusChecks: ['内容质量稳定性', '发布节奏合理性', '平台适配度'],
     riskSignals: ['违规风险', '内容重复', '发布时间冲突'],
     failSignals: ['发布队列异常'],
@@ -230,12 +267,14 @@ export const moduleExecutionRules = {
 }
 
 export function getModuleName(moduleKey) {
-  return moduleCatalog.find((item) => item.moduleKey === moduleKey)?.name ?? moduleKey
+  const normalized = normalizeModuleKey(moduleKey)
+  return moduleCatalog.find((item) => item.moduleKey === normalized)?.name ?? normalized
 }
 
 export function getModuleRule(moduleKey) {
+  const normalized = normalizeModuleKey(moduleKey)
   return (
-    moduleExecutionRules[moduleKey] ?? {
+    moduleExecutionRules[normalized] ?? {
       focusChecks: ['输入完整性', '结果可追溯性', '输出可执行性'],
       riskSignals: ['异常', '冲突', '缺失'],
       failSignals: ['处理失败'],

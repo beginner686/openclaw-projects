@@ -1,10 +1,11 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { computed, ref, watch, type Component } from 'vue'
 import { useRoute, useRouter, RouterView } from 'vue-router'
 import { ArrowDown, Menu } from '@element-plus/icons-vue'
 import { iconMap } from '@/config/icons'
 import { useAuthStore } from '@/stores/auth'
 import { useModuleStore } from '@/stores/module'
+import clawLogo from '@/assets/clawpilot_logo.png'
 
 const route = useRoute()
 const router = useRouter()
@@ -66,9 +67,9 @@ watch(
         <button class="mobile-menu-btn" type="button" @click="mobileDrawer = true">
           <el-icon><Menu /></el-icon>
         </button>
-        <div class="brand-mark">OC</div>
+        <img :src="clawLogo" alt="ClawPilot" class="brand-logo-img" />
         <div>
-          <h1 class="brand-title">ClawPilot</h1>
+          <h1 class="brand-title">ClawPilot AI</h1>
           <p class="brand-subtitle">统一前台 · 15 个业务场景 · 全端响应式</p>
         </div>
       </div>
@@ -203,15 +204,18 @@ watch(
   cursor: pointer;
 }
 
-.brand-mark {
-  width: 42px;
-  height: 42px;
-  border-radius: 12px;
-  display: grid;
-  place-items: center;
-  background: linear-gradient(135deg, var(--brand) 0%, var(--accent) 100%);
-  color: #fff;
-  font-weight: 700;
+.brand-logo-img {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  object-fit: contain;
+  filter: drop-shadow(0 0 10px rgba(79, 70, 229, 0.4)) drop-shadow(0 0 20px rgba(14, 165, 233, 0.2));
+  transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), filter 0.3s;
+}
+
+.brand-logo-img:hover {
+  transform: scale(1.08) rotate(5deg);
+  filter: drop-shadow(0 0 15px rgba(79, 70, 229, 0.75)) drop-shadow(0 0 30px rgba(14, 165, 233, 0.45));
 }
 
 .brand-title {
@@ -299,7 +303,8 @@ watch(
 .module-item {
   border: 1px solid var(--line);
   border-radius: 12px;
-  background: #fff;
+  background: #ffffff;
+  color: var(--text-strong);
   padding: 10px;
   display: flex;
   gap: 10px;
@@ -307,18 +312,23 @@ watch(
   text-align: left;
   font-size: 0.9rem;
   cursor: pointer;
-  transition: transform 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+  transition: transform 0.16s ease, border-color 0.16s ease, background 0.16s ease, color 0.16s ease;
+  font-family: inherit;
 }
 
 .module-item:hover {
   transform: translateY(-1px);
   border-color: var(--brand);
+  color: var(--brand);
+  background: var(--bg-soft);
 }
 
 .module-item.active {
   border-color: var(--brand);
-  background: linear-gradient(120deg, rgba(31, 95, 244, 0.12), rgba(31, 95, 244, 0.02));
-  box-shadow: inset 0 0 0 1px rgba(31, 95, 244, 0.2);
+  background: linear-gradient(120deg, rgba(26, 115, 232, 0.12), rgba(0, 172, 193, 0.06));
+  box-shadow: 0 0 0 1px rgba(26, 115, 232, 0.2), 0 2px 8px rgba(26, 115, 232, 0.12);
+  color: var(--brand);
+  font-weight: 600;
 }
 
 .content-wrap {

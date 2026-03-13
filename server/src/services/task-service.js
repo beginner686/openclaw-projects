@@ -1,6 +1,19 @@
 import { randomBytes } from 'node:crypto'
 
-export function createTaskService({ env, moduleCatalog, getModuleName, getModuleRule, dataRepository, reportService }) {
+export function createTaskService({
+  env,
+  moduleCatalog,
+  getModuleName,
+  getModuleRule,
+  normalizeModuleKey,
+  dataRepository,
+  reportService,
+}) {
+  const MAX_SCENARIO_LENGTH = 60
+  const MAX_INPUT_LENGTH = 6000
+  const MAX_ATTACHMENTS = 10
+  const MAX_ATTACHMENT_NAME_LENGTH = 200
+
   let workerTimer = null
   let cleanupTimer = null
   const inFlightTaskIds = new Set()
@@ -10,13 +23,14 @@ export function createTaskService({ env, moduleCatalog, getModuleName, getModule
   }
 
   function assertModuleAccess(user, moduleKey) {
-    if (!moduleCatalog.some((item) => item.moduleKey === moduleKey)) {
+    const normalizedModuleKey = normalizeModuleKey(moduleKey)
+    if (!moduleCatalog.some((item) => item.moduleKey === normalizedModuleKey)) {
       return fail(404, 'MODULE_NOT_FOUND', '业务模块不存在。')
     }
-    if (!user.enabledModules.includes(moduleKey)) {
+    if (!user.enabledModules.includes(normalizedModuleKey)) {
       return fail(403, 'MODULE_FORBIDDEN', '当前账号未开通该业务。')
     }
-    return { ok: true }
+    return { ok: true, moduleKey: normalizedModuleKey }
   }
 
   function toClientTask(task, viewerId) {
@@ -136,19 +150,31 @@ export function createTaskService({ env, moduleCatalog, getModuleName, getModule
     if (!access.ok) {
       return { error: access }
     }
+    const normalizedModuleKey = access.moduleKey
 
     const scenario = String(payload?.scenario ?? '').trim()
     const inputText = String(payload?.inputText ?? '').trim()
-    const attachments = Array.isArray(payload?.attachments) ? payload.attachments.map((item) => String(item)) : []
+    const attachments = Array.isArray(payload?.attachments)
+      ? payload.attachments.map((item) => String(item).trim().slice(0, MAX_ATTACHMENT_NAME_LENGTH)).filter(Boolean)
+      : []
 
     if (!scenario || !inputText) {
       return { error: fail(400, 'TASK_INVALID_PAYLOAD', '请填写任务场景和输入内容。') }
     }
+    if (scenario.length > MAX_SCENARIO_LENGTH) {
+      return { error: fail(400, 'TASK_SCENARIO_TOO_LONG', `任务场景长度不能超过 ${MAX_SCENARIO_LENGTH} 字符。`) }
+    }
+    if (inputText.length > MAX_INPUT_LENGTH) {
+      return { error: fail(400, 'TASK_INPUT_TOO_LONG', `任务输入内容不能超过 ${MAX_INPUT_LENGTH} 字符。`) }
+    }
+    if (attachments.length > MAX_ATTACHMENTS) {
+      return { error: fail(400, 'TASK_ATTACHMENTS_TOO_MANY', `附件数量不能超过 ${MAX_ATTACHMENTS} 个。`) }
+    }
 
     const task = {
-      taskId: `${moduleKey}-${Date.now().toString(36)}-${randomBytes(2).toString('hex')}`,
+      taskId: `${normalizedModuleKey}-${Date.now().toString(36)}-${randomBytes(2).toString('hex')}`,
       ownerId: user.id,
-      moduleKey,
+      moduleKey: normalizedModuleKey,
       scenario,
       inputText,
       attachments,
@@ -170,8 +196,9 @@ export function createTaskService({ env, moduleCatalog, getModuleName, getModule
     if (!access.ok) {
       return { error: access }
     }
+    const normalizedModuleKey = access.moduleKey
 
-    const task = await dataRepository.findTaskByIdForUser(user.id, moduleKey, taskId)
+    const task = await dataRepository.findTaskByIdForUser(user.id, normalizedModuleKey, taskId)
     if (!task) {
       return { error: fail(404, 'TASK_NOT_FOUND', '任务不存在。') }
     }
@@ -183,8 +210,9 @@ export function createTaskService({ env, moduleCatalog, getModuleName, getModule
     if (!access.ok) {
       return { error: access }
     }
+    const normalizedModuleKey = access.moduleKey
 
-    const history = (await dataRepository.listTasksByUserAndModule(user.id, moduleKey, 12)).map((task) =>
+    const history = (await dataRepository.listTasksByUserAndModule(user.id, normalizedModuleKey, 12)).map((task) =>
       toClientTask(task, user.id),
     )
     return { data: history }
