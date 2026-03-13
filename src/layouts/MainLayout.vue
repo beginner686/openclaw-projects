@@ -87,6 +87,7 @@ watch(
         </span>
         <template #dropdown>
           <el-dropdown-menu>
+            <el-dropdown-item v-if="auth.isAdmin" @click="router.push('/admin')">🛡️ 进入管理后台</el-dropdown-item>
             <el-dropdown-item @click="toCustomer">客户中心</el-dropdown-item>
             <el-dropdown-item @click="toInfo('privacy')">隐私政策</el-dropdown-item>
             <el-dropdown-item divided @click="onLogout">退出登录</el-dropdown-item>

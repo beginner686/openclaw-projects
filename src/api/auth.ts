@@ -1,4 +1,4 @@
-﻿import { apiClient } from './client'
+import { apiClient } from './client'
 import type { ApiMessage, AuthResponse, AuthUser } from '@/types/domain'
 
 export interface LoginPayload {
@@ -11,6 +11,7 @@ export interface RegisterPayload {
   name: string
   contact: string
   password: string
+  role?: 'customer' | 'admin'
 }
 
 export async function loginRequest(payload: LoginPayload) {

@@ -83,6 +83,7 @@ async function loadHistory() {
 function statusTagType(status: ModuleTaskResult['status']) {
   if (status === 'completed') return 'success'
   if (status === 'failed') return 'danger'
+  if (status === 'review') return 'warning'
   if (status === 'running') return 'warning'
   return 'info'
 }
@@ -194,6 +195,8 @@ async function submitTask() {
     if (result.status === 'queued' || result.status === 'running') {
       startPolling(result.taskId)
       ElMessage.success('任务已进入执行队列，系统会自动刷新进度。')
+    } else if (result.status === 'review') {
+      ElMessage.warning('任务已提交，当前处于待审核状态。')
     } else if (result.status === 'completed') {
       ElMessage.success('任务执行完成。')
     } else {

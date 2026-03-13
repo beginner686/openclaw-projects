@@ -6,7 +6,9 @@ export function createDashboardService({ getModuleName, reportService, dataRepos
   async function buildForUser(user) {
     const openedModules = user.enabledModules
     const recentTaskRows = await dataRepository.listRecentTasksForUser(user.id, openedModules, 8)
-    const recentTasks = recentTaskRows.map((task) => taskService.toClientTask(task, user.id))
+    const recentTasks = await Promise.all(
+      recentTaskRows.map((task) => taskService.toClientTask(task, user.id)),
+    )
 
     const reports = recentTasks
       .filter((task) => task.reportUrl)

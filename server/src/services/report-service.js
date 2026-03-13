@@ -1,8 +1,8 @@
-import { existsSync } from 'node:fs'
+﻿import { existsSync } from 'node:fs'
 import { writeFile } from 'node:fs/promises'
 import path from 'node:path'
 
-export function createReportService({ paths, getModuleName, getModuleRule, securityService }) {
+export function createReportService({ paths, getModuleName, getModuleRule, securityService, dataRepository }) {
   function escapeHtml(input = '') {
     return String(input)
       .replace(/&/g, '&amp;')
@@ -23,18 +23,53 @@ export function createReportService({ paths, getModuleName, getModuleRule, secur
   }
 
   function extractKeywords(text) {
-    return [...new Set(text.replace(/[^\p{L}\p{N}]+/gu, ' ').split(/\s+/).filter((item) => item.length > 1))].slice(0, 8)
+    return [...new Set(String(text ?? '').replace(/[^\p{L}\p{N}]+/gu, ' ').split(/\s+/).filter((item) => item.length > 1))]
+      .slice(0, 8)
   }
 
-  function buildTaskInsights(task) {
+  function normalizeArray(value, fallback = []) {
+    if (!Array.isArray(value)) return [...fallback]
+    return [...new Set(value.map((item) => String(item).trim()).filter(Boolean).slice(0, 100))]
+  }
+
+  async function resolveModuleRule(moduleKey) {
+    const baseRule = getModuleRule(moduleKey) ?? {
+      focusChecks: [],
+      riskSignals: [],
+      failSignals: [],
+      nextActions: [],
+    }
+
+    try {
+      const settings = await dataRepository?.findModuleSettings?.(moduleKey)
+      const override = settings?.config?.rule
+      return {
+        focusChecks: normalizeArray(override?.focusChecks, baseRule.focusChecks),
+        riskSignals: normalizeArray(override?.riskSignals, baseRule.riskSignals),
+        failSignals: normalizeArray(override?.failSignals, baseRule.failSignals),
+        nextActions: normalizeArray(override?.nextActions, baseRule.nextActions),
+      }
+    } catch {
+      return {
+        focusChecks: normalizeArray(baseRule.focusChecks, []),
+        riskSignals: normalizeArray(baseRule.riskSignals, []),
+        failSignals: normalizeArray(baseRule.failSignals, []),
+        nextActions: normalizeArray(baseRule.nextActions, []),
+      }
+    }
+  }
+
+  async function buildTaskInsights(task) {
     const moduleName = getModuleName(task.moduleKey)
-    const moduleRule = getModuleRule(task.moduleKey)
+    const moduleRule = await resolveModuleRule(task.moduleKey)
     const keywords = extractKeywords(task.inputText)
-    const textLength = task.inputText.length
+    const textLength = String(task.inputText ?? '').length
     const attachmentCount = Array.isArray(task.attachments) ? task.attachments.length : 0
-    const hasRiskSignal = moduleRule.riskSignals.some((item) => task.inputText.toLowerCase().includes(item.toLowerCase()))
+    const hasRiskSignal = moduleRule.riskSignals.some((item) =>
+      String(task.inputText ?? '').toLowerCase().includes(String(item).toLowerCase()),
+    )
     const confidence = Math.min(99, 64 + Math.floor(textLength / 20) + attachmentCount * 3 + moduleRule.focusChecks.length)
-    const priority = hasRiskSignal ? '高' : textLength > 120 ? '中' : '常规'
+    const priority = hasRiskSignal ? 'high' : textLength > 120 ? 'medium' : 'normal'
 
     return {
       moduleName,
@@ -42,8 +77,8 @@ export function createReportService({ paths, getModuleName, getModuleRule, secur
       keywords,
       priority,
       confidence,
-      nextActions: [...moduleRule.nextActions, '将结果同步到客户中心，结合历史任务做持续优化。'].slice(0, 4),
-      summary: `${moduleName}场景“${task.scenario}”完成，识别到 ${keywords.length} 个关键词，优先级为${priority}。`,
+      nextActions: [...moduleRule.nextActions, 'Sync this result to customer center and continue iterative optimization.'].slice(0, 4),
+      summary: `${moduleName} scenario \"${task.scenario}\" completed with ${keywords.length} keyword(s), priority ${priority}.`,
     }
   }
 
@@ -51,21 +86,21 @@ export function createReportService({ paths, getModuleName, getModuleRule, secur
     const keywordsHtml =
       insight.keywords.length > 0
         ? insight.keywords.map((item) => `<li>${escapeHtml(item)}</li>`).join('')
-        : '<li>未提取到明显关键词，建议补充更具体输入。</li>'
+        : '<li>No obvious keyword extracted. Please provide more specific input.</li>'
     const actionsHtml = insight.nextActions.map((item) => `<li>${escapeHtml(item)}</li>`).join('')
     const focusChecksHtml = insight.moduleRule.focusChecks.map((item) => `<li>${escapeHtml(item)}</li>`).join('')
     const riskSignalsHtml = insight.moduleRule.riskSignals.map((item) => `<li>${escapeHtml(item)}</li>`).join('')
     const attachmentsHtml =
       task.attachments.length > 0
         ? task.attachments.map((item) => `<li>${escapeHtml(item)}</li>`).join('')
-        : '<li>无附件</li>'
+        : '<li>No attachments.</li>'
 
     return `<!doctype html>
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>${escapeHtml(insight.moduleName)} - 任务报告</title>
+  <title>${escapeHtml(insight.moduleName)} - Task Report</title>
   <style>
     :root { color-scheme: light; }
     body { margin: 0; padding: 24px; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; background: #f5f7fb; color: #12284a; }
@@ -81,48 +116,47 @@ export function createReportService({ paths, getModuleName, getModuleRule, secur
 </head>
 <body>
   <article class="page">
-    <h1>${escapeHtml(insight.moduleName)} - 自动化任务报告</h1>
+    <h1>${escapeHtml(insight.moduleName)} - Automation Task Report</h1>
     <div class="meta">
-      <div><span class="badge">任务ID</span><code>${escapeHtml(task.taskId)}</code></div>
-      <div><span class="badge">执行场景</span>${escapeHtml(task.scenario)}</div>
-      <div><span class="badge">更新时间</span>${escapeHtml(task.updatedAt)}</div>
-      <div><span class="badge">可信度</span>${insight.confidence}%</div>
-      <div><span class="badge">优先级</span>${escapeHtml(insight.priority)}</div>
+      <div><span class="badge">Task ID</span><code>${escapeHtml(task.taskId)}</code></div>
+      <div><span class="badge">Scenario</span>${escapeHtml(task.scenario)}</div>
+      <div><span class="badge">Updated At</span>${escapeHtml(task.updatedAt)}</div>
+      <div><span class="badge">Confidence</span>${insight.confidence}%</div>
+      <div><span class="badge">Priority</span>${escapeHtml(insight.priority)}</div>
     </div>
 
     <section>
-      <h2>执行摘要</h2>
+      <h2>Summary</h2>
       <p>${escapeHtml(insight.summary)}</p>
-      <p>系统结合模块专属规则、输入文本特征和附件信息生成本次建议。</p>
     </section>
 
     <section>
-      <h2>模块专项检查维度</h2>
+      <h2>Focus Checks</h2>
       <ul>${focusChecksHtml}</ul>
     </section>
 
     <section>
-      <h2>输入内容</h2>
+      <h2>Input Content</h2>
       <p>${escapeHtml(task.inputText)}</p>
     </section>
 
     <section>
-      <h2>附件列表</h2>
+      <h2>Attachments</h2>
       <ul>${attachmentsHtml}</ul>
     </section>
 
     <section>
-      <h2>关键词识别</h2>
+      <h2>Extracted Keywords</h2>
       <ul>${keywordsHtml}</ul>
     </section>
 
     <section>
-      <h2>风险触发词库</h2>
+      <h2>Risk Signals</h2>
       <ul>${riskSignalsHtml}</ul>
     </section>
 
     <section>
-      <h2>后续建议</h2>
+      <h2>Next Actions</h2>
       <ul>${actionsHtml}</ul>
     </section>
   </article>
@@ -142,7 +176,7 @@ export function createReportService({ paths, getModuleName, getModuleRule, secur
       return false
     }
 
-    const insight = buildTaskInsights(task)
+    const insight = await buildTaskInsights(task)
     const html = renderReportHtml(task, insight)
     await writeFile(reportFsPath, html, 'utf8')
     task.summary = insight.summary

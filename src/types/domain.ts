@@ -17,7 +17,7 @@ export interface AuthUser {
   name: string
   contact: string
   enabledModules: string[]
-  role: 'customer' | 'manager'
+  role: 'customer' | 'admin'
   tokenState: 'active' | 'expired'
 }
 
@@ -39,7 +39,7 @@ export interface DashboardNotification {
 export interface ModuleTaskResult {
   taskId: string
   moduleKey: string
-  status: 'queued' | 'running' | 'completed' | 'failed'
+  status: 'review' | 'queued' | 'running' | 'completed' | 'failed'
   summary: string
   updatedAt: string
   reportUrl?: string

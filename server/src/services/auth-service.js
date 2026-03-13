@@ -45,10 +45,11 @@ export function createAuthService({ dataRepository, securityService, moduleCatal
     return { token, user: toAuthUser(user) }
   }
 
-  async function register({ name, contact, password }) {
+  async function register({ name, contact, password, role }) {
     const safeName = String(name ?? '').trim()
     const safeContact = String(contact ?? '').trim().toLowerCase()
     const safePassword = String(password ?? '')
+    const safeRole = role === 'admin' ? 'admin' : 'customer'
     if (!safeName || !safeContact || !safePassword) {
       return fail(400, 'AUTH_REGISTER_INVALID_PAYLOAD', '注册信息不完整。')
     }
@@ -60,19 +61,17 @@ export function createAuthService({ dataRepository, securityService, moduleCatal
       return fail(409, 'AUTH_CONTACT_ALREADY_EXISTS', '该账号已存在。')
     }
 
-    const enabledModules = [
-      ...new Set([
-        ...moduleCatalog.slice(0, 10).map((item) => item.moduleKey),
-        'anti-fraud-guardian',
-        'smart-grocery-supermarket',
-      ]),
-    ]
+    // 管理员默认开通全部模块，客户开通前10个
+    const enabledModules = safeRole === 'admin'
+      ? moduleCatalog.map((item) => item.moduleKey)
+      : moduleCatalog.slice(0, 10).map((item) => item.moduleKey)
     const user = securityService.createStoredUser({
       id: securityService.createUserId(),
       name: safeName,
       contact: safeContact,
       password: safePassword,
       enabledModules,
+      role: safeRole,
     })
     await dataRepository.insertUser(user)
     await dataRepository.insertTasks(dataRepository.createSeedTasks(user.id, user.enabledModules))

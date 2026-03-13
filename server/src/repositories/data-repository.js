@@ -363,165 +363,13 @@ export function createDataRepository({
     `)
 
     await p.query(`
-      CREATE TABLE IF NOT EXISTS anti_fraud_subscriptions (
+      CREATE TABLE IF NOT EXISTS module_settings (
         id BIGINT PRIMARY KEY AUTO_INCREMENT,
-        owner_id VARCHAR(64) NOT NULL UNIQUE,
-        plan_code VARCHAR(32) NOT NULL,
-        plan_name VARCHAR(64) NOT NULL,
-        status VARCHAR(20) NOT NULL DEFAULT 'active',
-        starts_at DATETIME(3) NOT NULL,
-        expires_at DATETIME(3) NOT NULL,
-        max_targets INT NOT NULL DEFAULT 1,
-        report_frequency VARCHAR(20) NOT NULL DEFAULT 'weekly',
-        realtime_alerts TINYINT(1) NOT NULL DEFAULT 0,
-        product_screening TINYINT(1) NOT NULL DEFAULT 0,
-        complaint_quota_month INT NOT NULL DEFAULT 1,
+        module_key VARCHAR(100) NOT NULL UNIQUE,
+        config_json JSON NOT NULL,
+        updated_by VARCHAR(64) NULL,
         created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-        updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
-        CONSTRAINT fk_af_subscription_owner FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-    `)
-
-    await p.query(`
-      CREATE TABLE IF NOT EXISTS anti_fraud_targets (
-        id BIGINT PRIMARY KEY AUTO_INCREMENT,
-        target_id VARCHAR(128) NOT NULL UNIQUE,
-        owner_id VARCHAR(64) NOT NULL,
-        target_type VARCHAR(32) NOT NULL,
-        platform VARCHAR(64) NOT NULL,
-        anchor_name VARCHAR(191) NOT NULL,
-        account_handle VARCHAR(191) NOT NULL,
-        room_link VARCHAR(512) NULL,
-        notes TEXT NULL,
-        status VARCHAR(20) NOT NULL DEFAULT 'active',
-        created_at DATETIME(3) NOT NULL,
-        updated_at DATETIME(3) NOT NULL,
-        INDEX idx_af_targets_owner_status (owner_id, status, updated_at),
-        CONSTRAINT fk_af_targets_owner FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-    `)
-
-    await p.query(`
-      CREATE TABLE IF NOT EXISTS anti_fraud_scans (
-        id BIGINT PRIMARY KEY AUTO_INCREMENT,
-        scan_id VARCHAR(128) NOT NULL UNIQUE,
-        owner_id VARCHAR(64) NOT NULL,
-        target_id VARCHAR(128) NULL,
-        source_title VARCHAR(191) NOT NULL,
-        source_link VARCHAR(512) NULL,
-        content_text LONGTEXT NULL,
-        risk_level VARCHAR(16) NOT NULL,
-        risk_score INT NOT NULL DEFAULT 0,
-        risk_tags_json JSON NOT NULL,
-        hit_phrases_json JSON NOT NULL,
-        summary TEXT NOT NULL,
-        safe_advice TEXT NOT NULL,
-        created_at DATETIME(3) NOT NULL,
-        INDEX idx_af_scans_owner_created (owner_id, created_at),
-        INDEX idx_af_scans_target (target_id),
-        CONSTRAINT fk_af_scans_owner FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-    `)
-
-    await p.query(`
-      CREATE TABLE IF NOT EXISTS anti_fraud_evidences (
-        id BIGINT PRIMARY KEY AUTO_INCREMENT,
-        evidence_id VARCHAR(128) NOT NULL UNIQUE,
-        owner_id VARCHAR(64) NOT NULL,
-        scan_id VARCHAR(128) NOT NULL,
-        target_id VARCHAR(128) NULL,
-        source_link VARCHAR(512) NULL,
-        captured_at DATETIME(3) NOT NULL,
-        violation_points_json JSON NOT NULL,
-        snapshot_text LONGTEXT NULL,
-        status VARCHAR(20) NOT NULL DEFAULT 'archived',
-        created_at DATETIME(3) NOT NULL,
-        INDEX idx_af_evidences_owner_created (owner_id, created_at),
-        INDEX idx_af_evidences_scan (scan_id),
-        CONSTRAINT fk_af_evidences_owner FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-    `)
-
-    await p.query(`
-      CREATE TABLE IF NOT EXISTS anti_fraud_reports (
-        id BIGINT PRIMARY KEY AUTO_INCREMENT,
-        report_id VARCHAR(128) NOT NULL UNIQUE,
-        owner_id VARCHAR(64) NOT NULL,
-        period_type VARCHAR(20) NOT NULL,
-        period_start DATETIME(3) NOT NULL,
-        period_end DATETIME(3) NOT NULL,
-        overview_json JSON NOT NULL,
-        high_risk_json JSON NOT NULL,
-        safe_content_json JSON NOT NULL,
-        recommendations_json JSON NOT NULL,
-        created_at DATETIME(3) NOT NULL,
-        INDEX idx_af_reports_owner_created (owner_id, created_at),
-        CONSTRAINT fk_af_reports_owner FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-    `)
-
-    await p.query(`
-      CREATE TABLE IF NOT EXISTS anti_fraud_complaints (
-        id BIGINT PRIMARY KEY AUTO_INCREMENT,
-        complaint_id VARCHAR(128) NOT NULL UNIQUE,
-        owner_id VARCHAR(64) NOT NULL,
-        status VARCHAR(20) NOT NULL,
-        scenario VARCHAR(40) NOT NULL,
-        evidence_ids_json JSON NOT NULL,
-        transaction_notes TEXT NULL,
-        facts_summary LONGTEXT NULL,
-        generated_text LONGTEXT NOT NULL,
-        channel_suggestions_json JSON NOT NULL,
-        created_at DATETIME(3) NOT NULL,
-        updated_at DATETIME(3) NOT NULL,
-        INDEX idx_af_complaints_owner_created (owner_id, created_at),
-        CONSTRAINT fk_af_complaints_owner FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-    `)
-
-    await p.query(`
-      CREATE TABLE IF NOT EXISTS grocery_price_feeds (
-        id BIGINT PRIMARY KEY AUTO_INCREMENT,
-        platform VARCHAR(64) NOT NULL,
-        item_name VARCHAR(191) NOT NULL,
-        category VARCHAR(64) NOT NULL,
-        display_spec VARCHAR(64) NOT NULL,
-        spec_weight_g INT NOT NULL,
-        price DECIMAL(10,2) NOT NULL,
-        deal_tag VARCHAR(32) NULL,
-        source_title VARCHAR(191) NULL,
-        source_link VARCHAR(512) NULL,
-        captured_at DATETIME(3) NOT NULL,
-        INDEX idx_grocery_feed_item (item_name),
-        INDEX idx_grocery_feed_category (category),
-        INDEX idx_grocery_feed_captured (captured_at)
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-    `)
-
-    await p.query(`
-      CREATE TABLE IF NOT EXISTS grocery_user_preferences (
-        owner_id VARCHAR(64) PRIMARY KEY,
-        budget_per_meal DECIMAL(10,2) NOT NULL DEFAULT 20,
-        family_size INT NOT NULL DEFAULT 2,
-        dietary_notes TEXT NULL,
-        updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
-        CONSTRAINT fk_grocery_pref_owner FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-    `)
-
-    await p.query(`
-      CREATE TABLE IF NOT EXISTS grocery_freshness_checks (
-        id BIGINT PRIMARY KEY AUTO_INCREMENT,
-        check_id VARCHAR(128) NOT NULL UNIQUE,
-        owner_id VARCHAR(64) NOT NULL,
-        image_name VARCHAR(191) NOT NULL,
-        freshness_score INT NOT NULL,
-        freshness_level VARCHAR(16) NOT NULL,
-        summary TEXT NOT NULL,
-        tips_json JSON NOT NULL,
-        created_at DATETIME(3) NOT NULL,
-        INDEX idx_grocery_freshness_owner_created (owner_id, created_at),
-        CONSTRAINT fk_grocery_freshness_owner FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE
+        updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `)
   }
@@ -1098,16 +946,25 @@ export function createDataRepository({
     )
   }
 
-  async function claimNextQueuedTask() {
+  async function claimNextQueuedTask(excludedModuleKeys = []) {
     const p = await ensurePool()
     const conn = await p.getConnection()
     try {
       await conn.beginTransaction()
+      const exclusionSql =
+        Array.isArray(excludedModuleKeys) && excludedModuleKeys.length
+          ? ` AND module_key NOT IN (${excludedModuleKeys.map(() => '?').join(', ')})`
+          : ''
+      const selectParams =
+        Array.isArray(excludedModuleKeys) && excludedModuleKeys.length
+          ? [...excludedModuleKeys]
+          : []
       const [rows] = await conn.query(
-        `SELECT * FROM tasks WHERE status = 'queued'
+        `SELECT * FROM tasks WHERE status = 'queued'${exclusionSql}
          ORDER BY created_at ASC
          LIMIT 1
          FOR UPDATE`,
+        selectParams,
       )
       if (!rows.length) {
         await conn.commit()
@@ -1589,6 +1446,130 @@ export function createDataRepository({
     }
   }
 
+  // ---- 管理员专属查询方法 ----
+
+  async function listUsers(limit = 100, offset = 0, search = '') {
+    const p = await ensurePool()
+    if (search) {
+      const like = `%${search}%`
+      const [rows] = await p.query(
+        'SELECT * FROM users WHERE (name LIKE ? OR contact LIKE ?) ORDER BY created_at DESC LIMIT ? OFFSET ?',
+        [like, like, limit, offset],
+      )
+      return rows.map(mapUserRow)
+    }
+    const [rows] = await p.query(
+      'SELECT * FROM users ORDER BY created_at DESC LIMIT ? OFFSET ?',
+      [limit, offset],
+    )
+    return rows.map(mapUserRow)
+  }
+
+  async function countUsers(search = '') {
+    const p = await ensurePool()
+    if (search) {
+      const like = `%${search}%`
+      const [[row]] = await p.query(
+        'SELECT COUNT(*) AS c FROM users WHERE (name LIKE ? OR contact LIKE ?)',
+        [like, like],
+      )
+      return Number(row.c)
+    }
+    const [[row]] = await p.query('SELECT COUNT(*) AS c FROM users')
+    return Number(row.c)
+  }
+
+  async function updateUserEnabledModules(userId, modules) {
+    const p = await ensurePool()
+    await p.query(
+      'UPDATE users SET enabled_modules_json = CAST(? AS JSON), updated_at = CURRENT_TIMESTAMP(3) WHERE id = ?',
+      [toJson(modules), userId],
+    )
+  }
+
+  async function listAllTasks(opts = {}) {
+    const p = await ensurePool()
+    const { status, moduleKey, limit = 50, offset = 0 } = opts
+    const conditions = []
+    const params = []
+    if (status) { conditions.push('status = ?'); params.push(status) }
+    if (moduleKey) { conditions.push('module_key = ?'); params.push(moduleKey) }
+    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
+    const [rows] = await p.query(
+      `SELECT * FROM tasks ${where} ORDER BY updated_at DESC LIMIT ? OFFSET ?`,
+      [...params, limit, offset],
+    )
+    return rows.map(mapTaskRow)
+  }
+
+  async function countAllTasks(opts = {}) {
+    const p = await ensurePool()
+    const { status, moduleKey } = opts
+    const conditions = []
+    const params = []
+    if (status) { conditions.push('status = ?'); params.push(status) }
+    if (moduleKey) { conditions.push('module_key = ?'); params.push(moduleKey) }
+    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
+    const [[row]] = await p.query(`SELECT COUNT(*) AS c FROM tasks ${where}`, params)
+    return Number(row.c)
+  }
+
+  async function getModuleStats() {
+    const p = await ensurePool()
+    const [rows] = await p.query(`
+      SELECT module_key, status, COUNT(*) AS cnt
+      FROM tasks
+      GROUP BY module_key, status
+    `)
+    return rows
+  }
+
+  async function listUsersByModule(moduleKey) {
+    const p = await ensurePool()
+    const [rows] = await p.query(
+      `SELECT u.*, MAX(t.updated_at) AS last_task_at, COUNT(t.id) AS task_count
+       FROM users u
+       LEFT JOIN tasks t ON t.owner_id = u.id AND t.module_key = ?
+       WHERE JSON_CONTAINS(u.enabled_modules_json, ?)
+       GROUP BY u.id
+       ORDER BY last_task_at DESC`,
+      [moduleKey, JSON.stringify(moduleKey)],
+    )
+    return rows.map((row) => ({
+      ...mapUserRow(row),
+      lastTaskAt: row.last_task_at ? toIso(row.last_task_at) : null,
+      taskCount: Number(row.task_count ?? 0),
+    }))
+  }
+
+  async function findModuleSettings(moduleKey) {
+    const p = await ensurePool()
+    const [rows] = await p.query('SELECT * FROM module_settings WHERE module_key = ? LIMIT 1', [moduleKey])
+    if (!rows.length) return null
+    const row = rows[0]
+    return {
+      moduleKey: row.module_key,
+      config: parseJson(row.config_json, {}),
+      updatedBy: row.updated_by ?? '',
+      updatedAt: row.updated_at ? toIso(row.updated_at) : null,
+      createdAt: row.created_at ? toIso(row.created_at) : null,
+    }
+  }
+
+  async function upsertModuleSettings(moduleKey, config, updatedBy = '') {
+    const p = await ensurePool()
+    await p.query(
+      `INSERT INTO module_settings (module_key, config_json, updated_by)
+       VALUES (?, CAST(? AS JSON), ?)
+       ON DUPLICATE KEY UPDATE
+         config_json = VALUES(config_json),
+         updated_by = VALUES(updated_by),
+         updated_at = CURRENT_TIMESTAMP(3)`,
+      [moduleKey, toJson(config ?? {}), updatedBy || null],
+    )
+    return findModuleSettings(moduleKey)
+  }
+
   return {
     ensureInitialized,
     createSeedTasks,
@@ -1610,36 +1591,16 @@ export function createDataRepository({
     claimNextQueuedTask,
     requeueRunningTasks,
     listTasksByStatus,
-    upsertAntiFraudSubscription,
-    getAntiFraudSubscription,
-    createAntiFraudTarget,
-    findAntiFraudTargetById,
-    listAntiFraudTargets,
-    countActiveAntiFraudTargets,
-    updateAntiFraudTarget,
-    removeAntiFraudTarget,
-    createAntiFraudScan,
-    findAntiFraudScan,
-    listAntiFraudScans,
-    listAntiFraudScansBetween,
-    createAntiFraudEvidence,
-    findAntiFraudEvidence,
-    listAntiFraudEvidences,
-    listAntiFraudEvidencesByIds,
-    createAntiFraudReport,
-    findAntiFraudReport,
-    listAntiFraudReports,
-    createAntiFraudComplaint,
-    findAntiFraudComplaint,
-    listAntiFraudComplaints,
-    countAntiFraudComplaintsBetween,
-    insertGroceryFeeds,
-    listLatestGroceryFeeds,
-    upsertGroceryPreference,
-    getGroceryPreference,
-    createGroceryFreshnessCheck,
-    findGroceryFreshnessCheck,
-    listGroceryFreshnessChecks,
+    // 管理员专属
+    listUsers,
+    countUsers,
+    updateUserEnabledModules,
+    listAllTasks,
+    countAllTasks,
+    getModuleStats,
+    listUsersByModule,
+    findModuleSettings,
+    upsertModuleSettings,
     close,
   }
 }
