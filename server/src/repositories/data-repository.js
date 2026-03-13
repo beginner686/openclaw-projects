@@ -345,6 +345,23 @@ export function createDataRepository({ env, moduleCatalog, securityService, getM
     return rows.length ? mapUserRow(rows[0]) : null
   }
 
+  async function findUserByAccount(account) {
+    const normalized = String(account ?? '').trim().toLowerCase()
+    if (!normalized) {
+      return null
+    }
+    const p = await ensurePool()
+    const [rows] = await p.query(
+      `SELECT * FROM users
+       WHERE LOWER(contact) = ?
+          OR LOWER(COALESCE(username, '')) = ?
+          OR id = ?
+       LIMIT 1`,
+      [normalized, normalized, normalized],
+    )
+    return rows.length ? mapUserRow(rows[0]) : null
+  }
+
   async function findUserById(id) {
     const p = await ensurePool()
     const [rows] = await p.query('SELECT * FROM users WHERE id = ? LIMIT 1', [id])
@@ -521,6 +538,7 @@ export function createDataRepository({ env, moduleCatalog, securityService, getM
   return {
     ensureInitialized,
     createSeedTasks,
+    findUserByAccount,
     findUserByContact,
     findUserById,
     contactExists,

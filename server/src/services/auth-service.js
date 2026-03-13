@@ -21,7 +21,9 @@ export function createAuthService({ dataRepository, securityService, moduleCatal
       return fail(400, 'AUTH_MISSING_CREDENTIALS', '账号和密码不能为空。')
     }
 
-    const user = await dataRepository.findUserByContact(normalized)
+    const user = dataRepository.findUserByAccount
+      ? await dataRepository.findUserByAccount(normalized)
+      : await dataRepository.findUserByContact(normalized)
     if (!user) {
       return fail(401, 'AUTH_INVALID_CREDENTIALS', '账号或密码错误。')
     }

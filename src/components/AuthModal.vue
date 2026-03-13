@@ -15,7 +15,7 @@ const loading = ref(false)
 const modalRef = ref<HTMLElement | null>(null)
 
 const loginForm = reactive({
-  account: 'demo@openclaw.ai',
+  account: 'admin@openclaw.local',
   password: '123456',
   remember: true,
 })
