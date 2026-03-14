@@ -4,12 +4,6 @@ import { ElMessage } from 'element-plus'
 import { fetchAdminUsers, updateUserModules } from '@/api/admin'
 import { fetchEnabledModules } from '@/api/modules'
 import type { AdminUser } from '@/api/admin'
-import { moduleCatalog } from '@/config/modules'
-
-const ALL_MODULES = moduleCatalog.map((item) => ({
-  key: item.moduleKey,
-  name: item.name,
-}))
 
 const loading = ref(true)
 const users = ref<AdminUser[]>([])

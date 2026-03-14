@@ -205,6 +205,10 @@ const todayPendingCount = computed(() => {
   const today = new Date().toISOString().slice(0, 10)
   return schedules.value.filter((item) => item.publishDate === today && item.status === 'planned').length
 })
+const todayPendingSchedules = computed(() => {
+  const today = new Date().toISOString().slice(0, 10)
+  return schedules.value.filter((item) => item.publishDate === today && item.status === 'planned')
+})
 
 function parsePlatforms(text: string) {
   return text
@@ -257,6 +261,27 @@ function scheduleStatusText(status: string) {
   if (status === 'publishing') return '发布中'
   if (status === 'failed') return '发布失败'
   return '待发布'
+}
+
+function escapeCsvCell(value: unknown) {
+  const text = String(value ?? '')
+  if (/[",\n]/.test(text)) {
+    return `"${text.replace(/"/g, '""')}"`
+  }
+  return text
+}
+
+function downloadCsv(filename: string, rows: string[][]) {
+  const csvContent = rows.map((row) => row.map(escapeCsvCell).join(',')).join('\n')
+  const blob = new Blob([`\uFEFF${csvContent}`], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  URL.revokeObjectURL(url)
 }
 
 function summarizeSchedules(items: MediaSchedule[]) {
@@ -642,6 +667,54 @@ async function onGenerateSchedules() {
 function onShowTodayPending() {
   scheduleFilterForm.date = new Date().toISOString().slice(0, 10)
   scheduleFilterForm.status = 'planned'
+}
+
+function onExportSchedulesCsv() {
+  if (!filteredSchedules.value.length) {
+    ElMessage.warning('当前筛选结果为空，无法导出。')
+    return
+  }
+
+  const rows = [
+    ['发布日期', '平台', '状态', '选题ID', '内容ID', '商品ID', '执行时间', '失败原因', '备注'],
+    ...filteredSchedules.value.map((item) => [
+      item.publishDate,
+      item.platform,
+      scheduleStatusText(item.status),
+      item.topicId || '',
+      item.contentId || '',
+      item.productId || '',
+      item.executedAt || '',
+      item.failureReason || '',
+      item.note || '',
+    ]),
+  ]
+  const dateToken = new Date().toISOString().slice(0, 10)
+  downloadCsv(`schedule-export-${dateToken}.csv`, rows)
+  ElMessage.success(`已导出 ${filteredSchedules.value.length} 条排期。`)
+}
+
+async function onCopyTodayChecklist() {
+  if (!todayPendingSchedules.value.length) {
+    ElMessage.warning('今日没有待发布排期。')
+    return
+  }
+
+  const lines = [
+    `今日待发清单（${new Date().toISOString().slice(0, 10)}）`,
+    ...todayPendingSchedules.value.map(
+      (item, index) =>
+        `${index + 1}. [${item.platform}] 选题:${item.topicId || '-'} 内容:${item.contentId || '-'} 商品:${item.productId || '-'} 备注:${item.note || '-'}`,
+    ),
+  ]
+  const text = lines.join('\n')
+
+  try {
+    await navigator.clipboard.writeText(text)
+    ElMessage.success(`已复制今日待发清单（${todayPendingSchedules.value.length} 条）。`)
+  } catch {
+    ElMessage.error('复制失败，请检查浏览器剪贴板权限。')
+  }
 }
 
 function onOpenEditSchedule(item: MediaSchedule) {
@@ -1130,6 +1203,8 @@ onMounted(() => {
                       <el-option label="发布失败" value="failed" />
                     </el-select>
                     <el-button plain @click="onShowTodayPending">今日待发（{{ todayPendingCount }}）</el-button>
+                    <el-button type="success" plain @click="onCopyTodayChecklist">复制今日执行清单</el-button>
+                    <el-button type="primary" plain @click="onExportSchedulesCsv">导出筛选结果CSV</el-button>
                   </div>
                   <p class="muted">筛选结果：{{ filteredSchedules.length }} / {{ schedules.length }}</p>
                   <el-empty v-if="!filteredSchedules.length" description="筛选后暂无排期" />

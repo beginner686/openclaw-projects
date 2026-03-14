@@ -37,7 +37,8 @@ const moduleKey = computed(() => String(route.params.moduleKey ?? ''))
 const hasAccess = computed(() => auth.user?.enabledModules.includes(moduleKey.value) ?? false)
 const isAntiFraudModule = computed(() => moduleKey.value === 'anti-fraud-guardian')
 const isSmartGroceryModule = computed(() => moduleKey.value === 'smart-grocery-supermarket')
-const isDedicatedModule = computed(() => isAntiFraudModule.value || isSmartGroceryModule.value)
+const isMediaModule = computed(() => moduleKey.value === 'content-generation-publisher')
+const isDedicatedModule = computed(() => isAntiFraudModule.value || isSmartGroceryModule.value || isMediaModule.value)
 const moduleMeta = computed(() => {
   const dynamicMeta = dynamicModuleMap.value.get(moduleKey.value)
   if (dynamicMeta) return dynamicMeta

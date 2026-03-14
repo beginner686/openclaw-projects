@@ -6,6 +6,7 @@ export function createTaskService({
   moduleCatalog,
   getModuleName,
   getModuleRule,
+  normalizeModuleKey = (value) => String(value ?? '').trim(),
   moduleLogicService,
   dataRepository,
   reportService,
@@ -35,6 +36,9 @@ export function createTaskService({
       nextActions: [],
     },
   }
+  const MAX_SCENARIO_LENGTH = 60
+  const MAX_ATTACHMENTS = 10
+  const MAX_INPUT_LENGTH = 6000
 
   function fail(status, code, message) {
     return { ok: false, status, code, message }
@@ -430,12 +434,13 @@ export function createTaskService({
   }
 
   async function createTask(user, moduleKey, payload) {
-    const access = assertModuleAccess(user, moduleKey)
+    const normalizedModuleKey = normalizeModuleKey(moduleKey)
+    const access = assertModuleAccess(user, normalizedModuleKey)
     if (!access.ok) {
       return { error: access }
     }
 
-    const validation = moduleLogicService?.validateTaskInput?.(moduleKey, payload) ?? {
+    const validation = moduleLogicService?.validateTaskInput?.(normalizedModuleKey, payload) ?? {
       ok: true,
       errors: [],
       warnings: [],
@@ -461,8 +466,17 @@ export function createTaskService({
     const scenario = validation.data.scenario
     const inputText = validation.data.inputText
     const attachments = validation.data.attachments
+    if (scenario.length > MAX_SCENARIO_LENGTH) {
+      return { error: fail(400, 'TASK_SCENARIO_TOO_LONG', `Scenario must be ${MAX_SCENARIO_LENGTH} chars or fewer.`) }
+    }
+    if (attachments.length > MAX_ATTACHMENTS) {
+      return { error: fail(400, 'TASK_ATTACHMENTS_TOO_MANY', `Attachments cannot exceed ${MAX_ATTACHMENTS} files.`) }
+    }
+    if (inputText.length > MAX_INPUT_LENGTH) {
+      return { error: fail(400, 'TASK_INPUT_TOO_LONG', `Input text must be ${MAX_INPUT_LENGTH} chars or fewer.`) }
+    }
 
-    const runtime = await getModuleRuntime(moduleKey, user.tenantId)
+    const runtime = await getModuleRuntime(normalizedModuleKey, user.tenantId)
     const mode = runtime.execution.mode
     const hasRiskSignal = includesToken(inputText, runtime.rule.riskSignals)
 
@@ -484,7 +498,7 @@ export function createTaskService({
       taskId: `${moduleKey}-${Date.now().toString(36)}-${randomBytes(2).toString('hex')}`,
       tenantId: user.tenantId ?? 't-platform',
       ownerId: user.id,
-      moduleKey,
+      moduleKey: normalizedModuleKey,
       scenario,
       inputText,
       attachments,
@@ -502,12 +516,13 @@ export function createTaskService({
   }
 
   async function getTask(user, moduleKey, taskId) {
-    const access = assertModuleAccess(user, moduleKey)
+    const normalizedModuleKey = normalizeModuleKey(moduleKey)
+    const access = assertModuleAccess(user, normalizedModuleKey)
     if (!access.ok) {
       return { error: access }
     }
 
-    const task = await dataRepository.findTaskByIdForUser(user.id, moduleKey, taskId, user.tenantId)
+    const task = await dataRepository.findTaskByIdForUser(user.id, normalizedModuleKey, taskId, user.tenantId)
     if (!task) {
       return { error: fail(404, 'TASK_NOT_FOUND', 'Task not found.') }
     }
@@ -515,12 +530,13 @@ export function createTaskService({
   }
 
   async function getHistory(user, moduleKey) {
-    const access = assertModuleAccess(user, moduleKey)
+    const normalizedModuleKey = normalizeModuleKey(moduleKey)
+    const access = assertModuleAccess(user, normalizedModuleKey)
     if (!access.ok) {
       return { error: access }
     }
 
-    const rows = await dataRepository.listTasksByUserAndModule(user.id, moduleKey, 12, user.tenantId)
+    const rows = await dataRepository.listTasksByUserAndModule(user.id, normalizedModuleKey, 12, user.tenantId)
     const history = await Promise.all(rows.map((task) => toClientTask(task, user.id)))
     return { data: history }
   }
@@ -531,10 +547,11 @@ export function createTaskService({
   }
 
   function getModuleSchema(moduleKey) {
-    if (!getModuleExists(moduleKey)) {
+    const normalizedModuleKey = normalizeModuleKey(moduleKey)
+    if (!getModuleExists(normalizedModuleKey)) {
       return null
     }
-    return moduleLogicService?.getSchema?.(moduleKey) ?? null
+    return moduleLogicService?.getSchema?.(normalizedModuleKey) ?? null
   }
 
   async function canUserAccessTaskReport(task, requesterUserId) {
