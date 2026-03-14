@@ -359,11 +359,11 @@ export function createDataRepository({
           tenantId: resolveTenantId(tenantId),
           ownerId,
           moduleKey,
-          scenario: '鏍囧噯娴佺▼',
-          inputText: `${moduleName}鍒濆鍖栨牱渚嬩换鍔★紝鐢熸垚棣栫増鍒嗘瀽鎶ュ憡銆俙,
+          scenario: 'standard',
+          inputText: `Bootstrap ${moduleName} sample task and generate the first report.`,
           attachments: [],
           status: 'completed',
-          summary: `${moduleName}鍒濆鍖栦换鍔″凡瀹屾垚銆俙,
+          summary: `${moduleName} seed task completed.`,
           updatedAt: nowIso(index + 3),
           createdAt: nowIso(index + 5),
           reportUrl: '',
@@ -375,11 +375,11 @@ export function createDataRepository({
           tenantId: resolveTenantId(tenantId),
           ownerId,
           moduleKey,
-          scenario: '鍔犳€ユ墽琛?,
-          inputText: `璇峰熀浜庢渶鏂拌緭鍏ョ户缁鐞?{moduleName}浠诲姟銆俙,
+          scenario: 'priority',
+          inputText: `Continue processing the latest ${moduleName} task input.`,
           attachments: [],
           status: 'queued',
-          summary: `${moduleName}浠诲姟宸茶繘鍏ユ墽琛岄槦鍒椼€俙,
+          summary: `${moduleName} task queued for execution.`,
           updatedAt: nowIso(index + 1),
           createdAt: nowIso(index + 2),
           reportUrl: '',
@@ -514,6 +514,170 @@ export function createDataRepository({
     `)
 
     await p.query(`
+      CREATE TABLE IF NOT EXISTS anti_fraud_subscriptions (
+        id BIGINT PRIMARY KEY AUTO_INCREMENT,
+        owner_id VARCHAR(64) NOT NULL,
+        plan_code VARCHAR(64) NOT NULL,
+        plan_name VARCHAR(120) NOT NULL,
+        status VARCHAR(20) NOT NULL DEFAULT 'active',
+        starts_at DATETIME(3) NOT NULL,
+        expires_at DATETIME(3) NOT NULL,
+        max_targets INT NOT NULL DEFAULT 1,
+        report_frequency VARCHAR(20) NOT NULL DEFAULT 'weekly',
+        realtime_alerts TINYINT(1) NOT NULL DEFAULT 0,
+        product_screening TINYINT(1) NOT NULL DEFAULT 0,
+        complaint_quota_month INT NOT NULL DEFAULT 1,
+        created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+        updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+        UNIQUE KEY uniq_anti_fraud_subscriptions_owner (owner_id),
+        CONSTRAINT fk_anti_fraud_subscriptions_owner FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `)
+
+    await p.query(`
+      CREATE TABLE IF NOT EXISTS anti_fraud_targets (
+        id BIGINT PRIMARY KEY AUTO_INCREMENT,
+        target_id VARCHAR(128) NOT NULL UNIQUE,
+        owner_id VARCHAR(64) NOT NULL,
+        target_type VARCHAR(64) NOT NULL,
+        platform VARCHAR(64) NOT NULL,
+        anchor_name VARCHAR(120) NOT NULL,
+        account_handle VARCHAR(120) NULL,
+        room_link VARCHAR(512) NULL,
+        notes TEXT NULL,
+        status VARCHAR(20) NOT NULL DEFAULT 'active',
+        created_at DATETIME(3) NOT NULL,
+        updated_at DATETIME(3) NOT NULL,
+        INDEX idx_anti_fraud_targets_owner_status (owner_id, status, updated_at),
+        CONSTRAINT fk_anti_fraud_targets_owner FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `)
+
+    await p.query(`
+      CREATE TABLE IF NOT EXISTS anti_fraud_scans (
+        id BIGINT PRIMARY KEY AUTO_INCREMENT,
+        scan_id VARCHAR(128) NOT NULL UNIQUE,
+        owner_id VARCHAR(64) NOT NULL,
+        target_id VARCHAR(128) NULL,
+        source_title VARCHAR(255) NOT NULL,
+        source_link VARCHAR(512) NULL,
+        content_text MEDIUMTEXT NULL,
+        risk_level VARCHAR(20) NOT NULL,
+        risk_score INT NOT NULL DEFAULT 0,
+        risk_tags_json JSON NOT NULL,
+        hit_phrases_json JSON NOT NULL,
+        summary TEXT NOT NULL,
+        safe_advice TEXT NOT NULL,
+        created_at DATETIME(3) NOT NULL,
+        INDEX idx_anti_fraud_scans_owner_created (owner_id, created_at),
+        CONSTRAINT fk_anti_fraud_scans_owner FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `)
+
+    await p.query(`
+      CREATE TABLE IF NOT EXISTS anti_fraud_evidences (
+        id BIGINT PRIMARY KEY AUTO_INCREMENT,
+        evidence_id VARCHAR(128) NOT NULL UNIQUE,
+        owner_id VARCHAR(64) NOT NULL,
+        scan_id VARCHAR(128) NOT NULL,
+        target_id VARCHAR(128) NULL,
+        source_link VARCHAR(512) NULL,
+        captured_at DATETIME(3) NOT NULL,
+        violation_points_json JSON NOT NULL,
+        snapshot_text TEXT NULL,
+        status VARCHAR(20) NOT NULL DEFAULT 'archived',
+        created_at DATETIME(3) NOT NULL,
+        INDEX idx_anti_fraud_evidences_owner_created (owner_id, created_at),
+        CONSTRAINT fk_anti_fraud_evidences_owner FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `)
+
+    await p.query(`
+      CREATE TABLE IF NOT EXISTS anti_fraud_reports (
+        id BIGINT PRIMARY KEY AUTO_INCREMENT,
+        report_id VARCHAR(128) NOT NULL UNIQUE,
+        owner_id VARCHAR(64) NOT NULL,
+        period_type VARCHAR(20) NOT NULL,
+        period_start DATETIME(3) NOT NULL,
+        period_end DATETIME(3) NOT NULL,
+        overview_json JSON NOT NULL,
+        high_risk_json JSON NOT NULL,
+        safe_content_json JSON NOT NULL,
+        recommendations_json JSON NOT NULL,
+        created_at DATETIME(3) NOT NULL,
+        INDEX idx_anti_fraud_reports_owner_created (owner_id, created_at),
+        CONSTRAINT fk_anti_fraud_reports_owner FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `)
+
+    await p.query(`
+      CREATE TABLE IF NOT EXISTS anti_fraud_complaints (
+        id BIGINT PRIMARY KEY AUTO_INCREMENT,
+        complaint_id VARCHAR(128) NOT NULL UNIQUE,
+        owner_id VARCHAR(64) NOT NULL,
+        status VARCHAR(20) NOT NULL DEFAULT 'ready',
+        scenario VARCHAR(80) NOT NULL,
+        evidence_ids_json JSON NOT NULL,
+        transaction_notes TEXT NULL,
+        facts_summary TEXT NULL,
+        generated_text MEDIUMTEXT NOT NULL,
+        channel_suggestions_json JSON NOT NULL,
+        created_at DATETIME(3) NOT NULL,
+        updated_at DATETIME(3) NOT NULL,
+        INDEX idx_anti_fraud_complaints_owner_created (owner_id, created_at),
+        CONSTRAINT fk_anti_fraud_complaints_owner FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `)
+
+    await p.query(`
+      CREATE TABLE IF NOT EXISTS grocery_price_feeds (
+        id BIGINT PRIMARY KEY AUTO_INCREMENT,
+        platform VARCHAR(64) NOT NULL,
+        item_name VARCHAR(120) NOT NULL,
+        category VARCHAR(40) NOT NULL,
+        display_spec VARCHAR(64) NOT NULL,
+        spec_weight_g INT NOT NULL DEFAULT 0,
+        price DECIMAL(10, 2) NOT NULL DEFAULT 0,
+        deal_tag VARCHAR(40) NULL,
+        source_title VARCHAR(191) NULL,
+        source_link VARCHAR(512) NULL,
+        captured_at DATETIME(3) NOT NULL,
+        INDEX idx_grocery_price_feeds_item_time (item_name, captured_at),
+        INDEX idx_grocery_price_feeds_platform_time (platform, captured_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `)
+
+    await p.query(`
+      CREATE TABLE IF NOT EXISTS grocery_user_preferences (
+        id BIGINT PRIMARY KEY AUTO_INCREMENT,
+        owner_id VARCHAR(64) NOT NULL,
+        budget_per_meal DECIMAL(10, 2) NOT NULL DEFAULT 20,
+        family_size INT NOT NULL DEFAULT 2,
+        dietary_notes VARCHAR(255) NULL,
+        created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+        updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+        UNIQUE KEY uniq_grocery_user_preferences_owner (owner_id),
+        CONSTRAINT fk_grocery_user_preferences_owner FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `)
+
+    await p.query(`
+      CREATE TABLE IF NOT EXISTS grocery_freshness_checks (
+        id BIGINT PRIMARY KEY AUTO_INCREMENT,
+        check_id VARCHAR(128) NOT NULL UNIQUE,
+        owner_id VARCHAR(64) NOT NULL,
+        image_name VARCHAR(191) NOT NULL,
+        freshness_score INT NOT NULL DEFAULT 0,
+        freshness_level VARCHAR(20) NOT NULL,
+        summary TEXT NOT NULL,
+        tips_json JSON NOT NULL,
+        created_at DATETIME(3) NOT NULL,
+        INDEX idx_grocery_freshness_checks_owner_created (owner_id, created_at),
+        CONSTRAINT fk_grocery_freshness_checks_owner FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `)
+
+    await p.query(`
       CREATE TABLE IF NOT EXISTS custom_modules (
         id BIGINT PRIMARY KEY AUTO_INCREMENT,
         module_key VARCHAR(100) NOT NULL UNIQUE,
@@ -539,7 +703,7 @@ export function createDataRepository({
     const p = await ensurePool()
     const tenantId = resolveTenantId(tenant.tenantId)
     const tenantCode = createTenantCode(tenant.tenantCode || tenantId)
-    const tenantName = String(tenant.tenantName || tenantCode || '鏈懡鍚嶇鎴?).slice(0, 120)
+    const tenantName = String(tenant.tenantName || tenantCode || 'unnamed-tenant').slice(0, 120)
     const tenantType = String(tenant.tenantType || 'personal').slice(0, 30)
     const status = String(tenant.status || 'active').slice(0, 20)
     const isolationLevel = String(tenant.isolationLevel || 'logical').slice(0, 20)
@@ -575,23 +739,23 @@ export function createDataRepository({
   async function seedDataDictionary() {
     const p = await ensurePool()
     const rows = [
-      ['role', 'admin', 'admin', '绠＄悊鍛?, '绯荤粺绠＄悊鍛樿处鍙?, 10],
-      ['role', 'customer', 'customer', '瀹㈡埛', '鏅€氬鎴疯处鍙?, 20],
-      ['task_status', 'review', 'review', '寰呭鏍?, '浜哄伐瀹℃牳闃舵', 10],
-      ['task_status', 'queued', 'queued', '鎺掗槦涓?, '绛夊緟鎵ц', 20],
-      ['task_status', 'running', 'running', '鎵ц涓?, '浠诲姟鎵ц涓?, 30],
-      ['task_status', 'completed', 'completed', '宸插畬鎴?, '鎵ц鎴愬姛', 40],
-      ['task_status', 'failed', 'failed', '澶辫触', '鎵ц澶辫触', 50],
-      ['tenant_type', 'internal', 'internal', '骞冲彴绉熸埛', '骞冲彴鍐呯疆绉熸埛', 10],
-      ['tenant_type', 'enterprise', 'enterprise', '浼佷笟绉熸埛', '浼佷笟涓氬姟绉熸埛', 20],
-      ['tenant_type', 'personal', 'personal', '涓汉绉熸埛', '涓汉涓氬姟绉熸埛', 30],
-      ['tenant_status', 'active', 'active', '鍚敤', '绉熸埛鍙敤', 10],
-      ['tenant_status', 'inactive', 'inactive', '鍋滅敤', '绉熸埛鍋滅敤', 20],
-      ['module_category', 'enterprise', 'enterprise', '浼佷笟鏈嶅姟', '浼佷笟涓氬姟妯″潡', 10],
-      ['module_category', 'personal', 'personal', '涓汉鏈嶅姟', '涓汉涓氬姟妯″潡', 20],
-      ['setting_mode', 'auto', 'auto', '鑷姩', '浠诲姟鑷姩鎵ц', 10],
-      ['setting_mode', 'manual', 'manual', '浜哄伐瀹℃牳', '浠诲姟鍏堣繘鍏ュ鏍?, 20],
-      ['setting_mode', 'hybrid', 'hybrid', '娣峰悎', '椋庨櫓浠诲姟杩涘叆瀹℃牳', 30],
+      ['role', 'admin', 'admin', 'Admin', 'System administrator account', 10],
+      ['role', 'customer', 'customer', 'Customer', 'Standard customer account', 20],
+      ['task_status', 'review', 'review', 'Review', 'Waiting for manual review', 10],
+      ['task_status', 'queued', 'queued', 'Queued', 'Waiting for execution', 20],
+      ['task_status', 'running', 'running', 'Running', 'Task is in progress', 30],
+      ['task_status', 'completed', 'completed', 'Completed', 'Execution completed successfully', 40],
+      ['task_status', 'failed', 'failed', 'Failed', 'Execution failed', 50],
+      ['tenant_type', 'internal', 'internal', 'Platform', 'Built-in platform tenant', 10],
+      ['tenant_type', 'enterprise', 'enterprise', 'Enterprise', 'Enterprise tenant', 20],
+      ['tenant_type', 'personal', 'personal', 'Personal', 'Personal tenant', 30],
+      ['tenant_status', 'active', 'active', 'Active', 'Tenant is active', 10],
+      ['tenant_status', 'inactive', 'inactive', 'Inactive', 'Tenant is inactive', 20],
+      ['module_category', 'enterprise', 'enterprise', 'Enterprise', 'Enterprise module', 10],
+      ['module_category', 'personal', 'personal', 'Personal', 'Personal module', 20],
+      ['setting_mode', 'auto', 'auto', 'Auto', 'Tasks run automatically', 10],
+      ['setting_mode', 'manual', 'manual', 'Manual', 'Tasks require manual approval', 20],
+      ['setting_mode', 'hybrid', 'hybrid', 'Hybrid', 'Risky tasks require approval', 30],
     ]
 
     for (const [dictType, dictKey, dictValue, dictLabel, description, sortOrder] of rows) {
@@ -927,7 +1091,7 @@ export function createDataRepository({
         if (user.id === 'u-demo-001') {
           await upsertAntiFraudSubscription(user.id, {
             planCode: 'standard',
-            planName: '鏍囧噯鐗?,
+            planName: 'Standard',
             status: 'active',
             startsAt: nowIso(24),
             expiresAt: nowIso(-24 * 90),
@@ -940,7 +1104,7 @@ export function createDataRepository({
         } else {
           await upsertAntiFraudSubscription(user.id, {
             planCode: 'basic',
-            planName: '鍩虹鐗?,
+            planName: 'Basic',
             status: 'active',
             startsAt: nowIso(24),
             expiresAt: nowIso(-24 * 30),
@@ -960,10 +1124,10 @@ export function createDataRepository({
         ownerId: 'u-demo-001',
         targetType: 'short-video-account',
         platform: 'douyin',
-        anchorName: '鍏荤敓璇惧爞A',
+        anchorName: 'Health Talk A',
         accountHandle: '@health-a',
         roomLink: 'https://example.com/live/health-a',
-        notes: '鐖舵瘝楂橀瑙傜湅璐﹀彿锛岄噸鐐圭洃娴嬨€?,
+        notes: 'Frequently watched by family members; track closely.',
         status: 'active',
         createdAt: nowIso(12),
         updatedAt: nowIso(12),
@@ -973,10 +1137,10 @@ export function createDataRepository({
         ownerId: 'u-demo-001',
         targetType: 'live-room',
         platform: 'kuaishou',
-        anchorName: '鍚嶅尰閫熸垚璇?,
+        anchorName: 'Doctor Fast Pitch',
         accountHandle: '@doctor-fast',
         roomLink: 'https://example.com/live/doctor-fast',
-        notes: '鐩存挱闂村瓨鍦ㄩ珮椋庨櫓閿€鍞瘽鏈€?,
+        notes: 'Live room appears to use aggressive medical sales language.',
         status: 'active',
         createdAt: nowIso(10),
         updatedAt: nowIso(10),
@@ -986,10 +1150,10 @@ export function createDataRepository({
         ownerId: 'u-lite-002',
         targetType: 'short-video-account',
         platform: 'douyin',
-        anchorName: '鍋ュ悍鍒嗕韩B',
+        anchorName: 'Health Share B',
         accountHandle: '@health-b',
         roomLink: 'https://example.com/live/health-b',
-        notes: '杞婚噺璐﹀彿娴嬭瘯鏍锋湰銆?,
+        notes: 'Lightweight sample account for testing.',
         status: 'active',
         createdAt: nowIso(9),
         updatedAt: nowIso(9),
@@ -1001,45 +1165,45 @@ export function createDataRepository({
         scanId: 'af-scan-demo-001',
         ownerId: 'u-demo-001',
         targetId: 'af-target-demo-01',
-        sourceTitle: '鐩存挱鍒囩墖锛氫笁澶╅€嗚浆鎱㈢梾',
+        sourceTitle: 'Live clip: cure chronic disease in three days',
         sourceLink: 'https://example.com/video/af-001',
-        contentText: '鍖呮不鐧剧梾锛屼笉鐢ㄥ悆鑽紝鍖婚櫌閮芥病娉曟不锛屾垜浠兘娌汇€?,
+        contentText: 'Cure every illness without medicine. Even hospitals cannot do what we can do.',
         riskLevel: 'high',
         riskScore: 96,
-        riskTags: ['澶稿ぇ瀹ｄ紶', '鏇夸唬姝ｈ娌荤枟', '缁濆鍖栨壙璇?],
-        hitPhrases: ['鍖呮不鐧剧梾', '涓嶇敤鍚冭嵂', '鍖婚櫌閮芥病娉曟不'],
-        summary: '妫€娴嬪埌楂橀闄╁仴搴峰じ澶у浼狅紝璇峰嬁璐拱鐩稿叧浜у搧銆?,
-        safeAdvice: '浠呬繚鐣欏瑙傚仴搴峰父璇嗭紝蹇呰鏃跺挩璇㈡瑙勫尰鐤楁満鏋勩€?,
+        riskTags: ['medical-exaggeration', 'replace-formal-treatment', 'absolute-claim'],
+        hitPhrases: ['cure every illness', 'without medicine', 'even hospitals cannot'],
+        summary: 'Detected high-risk health misinformation and aggressive claims.',
+        safeAdvice: 'Do not buy related products. Verify information with licensed medical providers.',
         createdAt: nowIso(8),
       })
       await createAntiFraudScan({
         scanId: 'af-scan-demo-002',
         ownerId: 'u-demo-001',
         targetId: 'af-target-demo-02',
-        sourceTitle: '鐭棰戯細琛€绠℃竻鐞嗙鏂?,
+        sourceTitle: 'Short video: hidden blood vessel cleaning trick',
         sourceLink: 'https://example.com/video/af-002',
-        contentText: '鎵€鏈夊尰鐢熼兘涓嶇煡閬撶殑绉樺瘑锛岄檷鍘嬮檷绯栫珛鍒昏鏁堛€?,
+        contentText: 'A secret no doctor knows. Blood pressure and sugar drop instantly.',
         riskLevel: 'high',
         riskScore: 91,
-        riskTags: ['鍋囨潈濞佽瘽鏈?, '鍖荤枟鍔熸晥鏆楃ず'],
-        hitPhrases: ['鎵€鏈夊尰鐢熼兘涓嶇煡閬撶殑绉樺瘑', '闄嶅帇闄嶇硸绔嬪埢瑙佹晥'],
-        summary: '妫€娴嬪埌楂橀闄╁姛鏁堟殫绀哄唴瀹癸紝寤鸿绔嬪嵆灞忚斀骞跺瓨璇併€?,
-        safeAdvice: '鎷掔粷鍔熸晥鎵胯绫昏惀閿€鍐呭锛屼繚鐣欒瘉鎹悗鎸夋祦绋嬫姇璇夈€?,
+        riskTags: ['fake-authority', 'medical-effect-suggestion'],
+        hitPhrases: ['no doctor knows', 'drop instantly'],
+        summary: 'Detected high-risk efficacy suggestion and fake authority wording.',
+        safeAdvice: 'Avoid effect-claim marketing content. Preserve evidence and report if needed.',
         createdAt: nowIso(6),
       })
       await createAntiFraudScan({
         scanId: 'af-scan-lite-001',
         ownerId: 'u-lite-002',
         targetId: 'af-target-lite-01',
-        sourceTitle: '鍋ュ悍楗寤鸿',
+        sourceTitle: 'Healthy diet suggestions',
         sourceLink: 'https://example.com/video/af-lite-001',
-        contentText: '寤鸿瑙勫緥浣滄伅銆佸悎鐞嗛ギ椋燂紝閬垮厤澶稿ぇ瀹ｄ紶浜у搧銆?,
+        contentText: 'Keep a regular routine, eat balanced meals, and avoid miracle-product claims.',
         riskLevel: 'low',
         riskScore: 18,
-        riskTags: ['瀹㈣绉戞櫘'],
+        riskTags: ['general-education'],
         hitPhrases: [],
-        summary: '鍐呭浠ュ父瑙勫仴搴峰缓璁负涓伙紝椋庨櫓浣庛€?,
-        safeAdvice: '鍙户缁叧娉紝浣嗕繚鎸佺悊鎬ф秷璐逛範鎯€?,
+        summary: 'Content is general health guidance with low risk.',
+        safeAdvice: 'Safe to continue following, while keeping normal purchasing caution.',
         createdAt: nowIso(5),
       })
     }
@@ -1052,8 +1216,8 @@ export function createDataRepository({
         targetId: 'af-target-demo-01',
         sourceLink: 'https://example.com/video/af-001',
         capturedAt: nowIso(8),
-        violationPoints: ['鍑虹幇鈥滃寘娌荤櫨鐥呪€濈粷瀵瑰寲鎵胯', '鍑虹幇鈥滃尰闄㈤兘娌℃硶娌伙紝鎴戜滑鑳芥不鈥濇浛浠ｆ不鐤楄瘽鏈?],
-        snapshotText: '鎴浘甯?#12,#23 淇濆瓨鎴愬姛锛涚洿鎾爣棰樺惈楂橀闄╃煭璇€?,
+        violationPoints: ['Contains absolute cure-all claim', 'Contains replacement-treatment claim'],
+        snapshotText: 'Screenshots #12 and #23 saved successfully; title contains high-risk phrases.',
         status: 'archived',
         createdAt: nowIso(8),
       })
@@ -1064,8 +1228,8 @@ export function createDataRepository({
         targetId: 'af-target-demo-02',
         sourceLink: 'https://example.com/video/af-002',
         capturedAt: nowIso(6),
-        violationPoints: ['鍑虹幇鈥滄墍鏈夊尰鐢熼兘涓嶇煡閬撶殑绉樺瘑鈥濆亣鏉冨▉璇濇湳', '鍑虹幇鈥滈檷鍘嬮檷绯栫珛鍒昏鏁堚€濆姛鏁堟殫绀?],
-        snapshotText: '瑙嗛閾炬帴銆佸彂甯冩椂闂淬€佽处鍙蜂富椤靛凡褰掓。銆?,
+        violationPoints: ['Uses fake authority wording', 'Uses instant effect promise'],
+        snapshotText: 'Video link, publish time, and account homepage were archived.',
         status: 'archived',
         createdAt: nowIso(6),
       })
@@ -1085,11 +1249,14 @@ export function createDataRepository({
           lowRiskCount: 5,
         },
         highRiskItems: [
-          { scanId: 'af-scan-demo-001', title: '鐩存挱鍒囩墖锛氫笁澶╅€嗚浆鎱㈢梾', riskLevel: 'high' },
-          { scanId: 'af-scan-demo-002', title: '鐭棰戯細琛€绠℃竻鐞嗙鏂?, riskLevel: 'high' },
+          { scanId: 'af-scan-demo-001', title: 'Live clip: cure chronic disease in three days', riskLevel: 'high' },
+          { scanId: 'af-scan-demo-002', title: 'Short video: hidden blood vessel cleaning trick', riskLevel: 'high' },
         ],
-        safeItems: [{ scanId: 'af-scan-lite-001', title: '鍋ュ悍楗寤鸿', riskLevel: 'low' }],
-        recommendations: ['缁х画鐩戞祴楂橀闄╀富鎾苟灞忚斀閲嶅杩濊鍐呭銆?, '鎻愰啋瀹朵汉閬垮厤鍐插姩涓嬪崟锛屽厛鏍搁獙淇℃伅鏉ユ簮銆?],
+        safeItems: [{ scanId: 'af-scan-lite-001', title: 'Healthy diet suggestions', riskLevel: 'low' }],
+        recommendations: [
+          'Continue monitoring high-risk anchors and archive repeated violations.',
+          'Remind family members not to buy impulsively before verifying the source.',
+        ],
         createdAt: nowIso(2),
       })
     }
@@ -1101,10 +1268,10 @@ export function createDataRepository({
         status: 'ready',
         scenario: 'false-health-promotion',
         evidenceIds: ['af-evidence-demo-001'],
-        transactionNotes: '2026-03-10 閫氳繃鐩存挱闂翠笅鍗曪紝閲戦 299 鍏冦€?,
-        factsSummary: '涓绘挱鍦ㄧ洿鎾腑浣跨敤缁濆鍖栨壙璇哄苟寮曞涓嬪崟銆?,
-        generatedText: '鎶曡瘔璇锋眰锛氳鏍告煡璇ョ洿鎾处鍙峰瓨鍦ㄥじ澶у仴搴峰浼犲苟璇娑堣垂琛屼负锛岄檮璇佹嵁鏉愭枡銆?,
-        channelSuggestions: ['12315', '骞冲彴涓炬姤'],
+        transactionNotes: 'Placed an order through the live room on 2026-03-10, amount 299 CNY.',
+        factsSummary: 'The anchor used absolute claims during the live stream and induced purchase.',
+        generatedText: 'Complaint request: please verify the exaggerated health promotion and misleading sales behavior of this live account. Evidence attached.',
+        channelSuggestions: ['12315', 'platform-report'],
         createdAt: nowIso(1),
         updatedAt: nowIso(1),
       })
@@ -1112,26 +1279,26 @@ export function createDataRepository({
 
     if (groceryFeedCount === 0) {
       const feedSeed = [
-        { platform: '鏈存湸', itemName: '瑗跨孩鏌?, category: 'vegetable', displaySpec: '500g', specWeightG: 500, price: 3.99, dealTag: '鐗逛环', sourceTitle: '浠婃棩椴滆敩', sourceLink: 'https://example.com/grocery/pupu/tomato' },
-        { platform: '澶氬涔拌彍', itemName: '瑗跨孩鏌?, category: 'vegetable', displaySpec: '500g', specWeightG: 500, price: 4.29, dealTag: '鏃ュ父浠?, sourceTitle: '钄彍涓撳尯', sourceLink: 'https://example.com/grocery/dd/tomato' },
-        { platform: '缇庡洟浼橀€?, itemName: '瑗跨孩鏌?, category: 'vegetable', displaySpec: '500g', specWeightG: 500, price: 4.59, dealTag: '鏃ュ父浠?, sourceTitle: '姣忔棩浼橀€?, sourceLink: 'https://example.com/grocery/meituan/tomato' },
-        { platform: '鐩掗┈', itemName: '榛勭摐', category: 'vegetable', displaySpec: '500g', specWeightG: 500, price: 3.69, dealTag: '鐖嗘', sourceTitle: '鐢熼矞鐑崠', sourceLink: 'https://example.com/grocery/hema/cucumber' },
-        { platform: '鏈存湸', itemName: '榛勭摐', category: 'vegetable', displaySpec: '500g', specWeightG: 500, price: 3.89, dealTag: '鏃ュ父浠?, sourceTitle: '浠婃棩椴滆敩', sourceLink: 'https://example.com/grocery/pupu/cucumber' },
-        { platform: '澶氬涔拌彍', itemName: '鍦熻眴', category: 'vegetable', displaySpec: '1000g', specWeightG: 1000, price: 4.99, dealTag: '鐗逛环', sourceTitle: '瀹跺涵瑁?, sourceLink: 'https://example.com/grocery/dd/potato' },
-        { platform: '缇庡洟浼橀€?, itemName: '鍦熻眴', category: 'vegetable', displaySpec: '1000g', specWeightG: 1000, price: 5.49, dealTag: '鏃ュ父浠?, sourceTitle: '瀹跺父鑿?, sourceLink: 'https://example.com/grocery/meituan/potato' },
-        { platform: '鐩掗┈', itemName: '楦¤泲', category: 'protein', displaySpec: '10鏋?, specWeightG: 550, price: 8.90, dealTag: '鐗逛环', sourceTitle: '鏃╅涓撳尯', sourceLink: 'https://example.com/grocery/hema/egg' },
-        { platform: '鏈存湸', itemName: '楦¤泲', category: 'protein', displaySpec: '10鏋?, specWeightG: 550, price: 9.50, dealTag: '鏃ュ父浠?, sourceTitle: '鏃╅涓撳尯', sourceLink: 'https://example.com/grocery/pupu/egg' },
-        { platform: '澶氬涔拌彍', itemName: '楦¤兏鑲?, category: 'protein', displaySpec: '500g', specWeightG: 500, price: 12.80, dealTag: '闄愭椂', sourceTitle: '鑲夌浼橀€?, sourceLink: 'https://example.com/grocery/dd/chicken-breast' },
-        { platform: '缇庡洟浼橀€?, itemName: '楦¤兏鑲?, category: 'protein', displaySpec: '500g', specWeightG: 500, price: 13.50, dealTag: '鏃ュ父浠?, sourceTitle: '鑲夌浼橀€?, sourceLink: 'https://example.com/grocery/meituan/chicken-breast' },
-        { platform: '鐩掗┈', itemName: '楦¤兏鑲?, category: 'protein', displaySpec: '500g', specWeightG: 500, price: 14.20, dealTag: '鏃ュ父浠?, sourceTitle: '鑲夌浼橀€?, sourceLink: 'https://example.com/grocery/hema/chicken-breast' },
-        { platform: '鏈存湸', itemName: '浜旇姳鑲?, category: 'protein', displaySpec: '500g', specWeightG: 500, price: 19.90, dealTag: '鏃ュ父浠?, sourceTitle: '鐚倝涓撳尯', sourceLink: 'https://example.com/grocery/pupu/pork-belly' },
-        { platform: '缇庡洟浼橀€?, itemName: '浜旇姳鑲?, category: 'protein', displaySpec: '500g', specWeightG: 500, price: 18.60, dealTag: '鐗逛环', sourceTitle: '鐚倝涓撳尯', sourceLink: 'https://example.com/grocery/meituan/pork-belly' },
-        { platform: '澶氬涔拌彍', itemName: '澶х背', category: 'staple', displaySpec: '2500g', specWeightG: 2500, price: 12.90, dealTag: '鐖嗘', sourceTitle: '绮补涓婚', sourceLink: 'https://example.com/grocery/dd/rice' },
-        { platform: '鏈存湸', itemName: '澶х背', category: 'staple', displaySpec: '2500g', specWeightG: 2500, price: 14.50, dealTag: '鏃ュ父浠?, sourceTitle: '绮补涓婚', sourceLink: 'https://example.com/grocery/pupu/rice' },
-        { platform: '鐩掗┈', itemName: '鎸傞潰', category: 'staple', displaySpec: '1000g', specWeightG: 1000, price: 6.80, dealTag: '鐗逛环', sourceTitle: '涓婚涓撳尯', sourceLink: 'https://example.com/grocery/hema/noodle' },
-        { platform: '缇庡洟浼橀€?, itemName: '鎸傞潰', category: 'staple', displaySpec: '1000g', specWeightG: 1000, price: 7.10, dealTag: '鏃ュ父浠?, sourceTitle: '涓婚涓撳尯', sourceLink: 'https://example.com/grocery/meituan/noodle' },
-        { platform: '鏈存湸', itemName: '闈掕彍', category: 'vegetable', displaySpec: '500g', specWeightG: 500, price: 2.99, dealTag: '闄愭椂', sourceTitle: '浠婃棩椴滆敩', sourceLink: 'https://example.com/grocery/pupu/greens' },
-        { platform: '澶氬涔拌彍', itemName: '闈掕彍', category: 'vegetable', displaySpec: '500g', specWeightG: 500, price: 3.49, dealTag: '鏃ュ父浠?, sourceTitle: '浠婃棩椴滆敩', sourceLink: 'https://example.com/grocery/dd/greens' },
+        { platform: 'pupu', itemName: 'tomato', category: 'vegetable', displaySpec: '500g', specWeightG: 500, price: 3.99, dealTag: 'promo', sourceTitle: 'today fresh', sourceLink: 'https://example.com/grocery/pupu/tomato' },
+        { platform: 'duoduo', itemName: 'tomato', category: 'vegetable', displaySpec: '500g', specWeightG: 500, price: 4.29, dealTag: 'regular', sourceTitle: 'vegetable zone', sourceLink: 'https://example.com/grocery/dd/tomato' },
+        { platform: 'meituan', itemName: 'tomato', category: 'vegetable', displaySpec: '500g', specWeightG: 500, price: 4.59, dealTag: 'regular', sourceTitle: 'daily picks', sourceLink: 'https://example.com/grocery/meituan/tomato' },
+        { platform: 'hema', itemName: 'cucumber', category: 'vegetable', displaySpec: '500g', specWeightG: 500, price: 3.69, dealTag: 'hot', sourceTitle: 'fresh bestseller', sourceLink: 'https://example.com/grocery/hema/cucumber' },
+        { platform: 'pupu', itemName: 'cucumber', category: 'vegetable', displaySpec: '500g', specWeightG: 500, price: 3.89, dealTag: 'regular', sourceTitle: 'today fresh', sourceLink: 'https://example.com/grocery/pupu/cucumber' },
+        { platform: 'duoduo', itemName: 'potato', category: 'vegetable', displaySpec: '1000g', specWeightG: 1000, price: 4.99, dealTag: 'promo', sourceTitle: 'family pack', sourceLink: 'https://example.com/grocery/dd/potato' },
+        { platform: 'meituan', itemName: 'potato', category: 'vegetable', displaySpec: '1000g', specWeightG: 1000, price: 5.49, dealTag: 'regular', sourceTitle: 'family kitchen', sourceLink: 'https://example.com/grocery/meituan/potato' },
+        { platform: 'hema', itemName: 'egg', category: 'protein', displaySpec: '10pcs', specWeightG: 550, price: 8.9, dealTag: 'promo', sourceTitle: 'breakfast zone', sourceLink: 'https://example.com/grocery/hema/egg' },
+        { platform: 'pupu', itemName: 'egg', category: 'protein', displaySpec: '10pcs', specWeightG: 550, price: 9.5, dealTag: 'regular', sourceTitle: 'breakfast zone', sourceLink: 'https://example.com/grocery/pupu/egg' },
+        { platform: 'duoduo', itemName: 'chicken-breast', category: 'protein', displaySpec: '500g', specWeightG: 500, price: 12.8, dealTag: 'limited', sourceTitle: 'protein picks', sourceLink: 'https://example.com/grocery/dd/chicken-breast' },
+        { platform: 'meituan', itemName: 'chicken-breast', category: 'protein', displaySpec: '500g', specWeightG: 500, price: 13.5, dealTag: 'regular', sourceTitle: 'protein picks', sourceLink: 'https://example.com/grocery/meituan/chicken-breast' },
+        { platform: 'hema', itemName: 'chicken-breast', category: 'protein', displaySpec: '500g', specWeightG: 500, price: 14.2, dealTag: 'regular', sourceTitle: 'protein picks', sourceLink: 'https://example.com/grocery/hema/chicken-breast' },
+        { platform: 'pupu', itemName: 'pork-belly', category: 'protein', displaySpec: '500g', specWeightG: 500, price: 19.9, dealTag: 'regular', sourceTitle: 'meat section', sourceLink: 'https://example.com/grocery/pupu/pork-belly' },
+        { platform: 'meituan', itemName: 'pork-belly', category: 'protein', displaySpec: '500g', specWeightG: 500, price: 18.6, dealTag: 'promo', sourceTitle: 'meat section', sourceLink: 'https://example.com/grocery/meituan/pork-belly' },
+        { platform: 'duoduo', itemName: 'rice', category: 'staple', displaySpec: '2500g', specWeightG: 2500, price: 12.9, dealTag: 'hot', sourceTitle: 'grain staple', sourceLink: 'https://example.com/grocery/dd/rice' },
+        { platform: 'pupu', itemName: 'rice', category: 'staple', displaySpec: '2500g', specWeightG: 2500, price: 14.5, dealTag: 'regular', sourceTitle: 'grain staple', sourceLink: 'https://example.com/grocery/pupu/rice' },
+        { platform: 'hema', itemName: 'noodle', category: 'staple', displaySpec: '1000g', specWeightG: 1000, price: 6.8, dealTag: 'promo', sourceTitle: 'staple zone', sourceLink: 'https://example.com/grocery/hema/noodle' },
+        { platform: 'meituan', itemName: 'noodle', category: 'staple', displaySpec: '1000g', specWeightG: 1000, price: 7.1, dealTag: 'regular', sourceTitle: 'staple zone', sourceLink: 'https://example.com/grocery/meituan/noodle' },
+        { platform: 'pupu', itemName: 'greens', category: 'vegetable', displaySpec: '500g', specWeightG: 500, price: 2.99, dealTag: 'limited', sourceTitle: 'today fresh', sourceLink: 'https://example.com/grocery/pupu/greens' },
+        { platform: 'duoduo', itemName: 'greens', category: 'vegetable', displaySpec: '500g', specWeightG: 500, price: 3.49, dealTag: 'regular', sourceTitle: 'today fresh', sourceLink: 'https://example.com/grocery/dd/greens' },
       ].map((item) => ({ ...item, capturedAt: nowIso(0) }))
       await insertGroceryFeeds(feedSeed)
     }
@@ -1140,12 +1307,12 @@ export function createDataRepository({
       await upsertGroceryPreference('u-demo-001', {
         budgetPerMeal: 25,
         familySize: 3,
-        dietaryNotes: '灏戞补灏戠洂锛屽亸瀹跺父鑿?,
+        dietaryNotes: 'Less oil and salt; prefers home-style meals.',
       })
       await upsertGroceryPreference('u-lite-002', {
         budgetPerMeal: 18,
         familySize: 2,
-        dietaryNotes: '蹇墜鑿滀紭鍏?,
+        dietaryNotes: 'Quick meals preferred.',
       })
     }
   }
@@ -1429,7 +1596,7 @@ export function createDataRepository({
     await p.query(
       `UPDATE tasks
        SET status = 'queued',
-           summary = '浠诲姟宸叉仮澶嶅埌鎺掗槦鐘舵€侊紝绛夊緟閲嶆柊鎵ц銆?,
+           summary = 'Task recovered to queue and waiting to run again.',
            updated_at = ?
        WHERE status = 'running'`,
       [new Date()],

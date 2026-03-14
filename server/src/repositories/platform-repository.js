@@ -141,7 +141,7 @@ export function createPlatformRepository({
 
     await p.query(`
       CREATE TABLE IF NOT EXISTS tenants (
-        id VARCHAR(64) PRIMARY KEY,
+        tenant_id VARCHAR(64) PRIMARY KEY,
         tenant_code VARCHAR(64) NOT NULL UNIQUE,
         tenant_name VARCHAR(120) NOT NULL,
         status VARCHAR(20) NOT NULL DEFAULT 'active',
@@ -409,7 +409,7 @@ export function createPlatformRepository({
     ]
 
     await p.query(
-      `INSERT INTO tenants (id, tenant_code, tenant_name, status)
+      `INSERT INTO tenants (tenant_id, tenant_code, tenant_name, status)
        VALUES (?, ?, ?, 'active')
        ON DUPLICATE KEY UPDATE tenant_name = VALUES(tenant_name), status = VALUES(status)`,
       [defaultTenantId, 'openclaw-default', 'OpenClaw Default Tenant'],

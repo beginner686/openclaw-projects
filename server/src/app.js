@@ -4,7 +4,7 @@ import morgan from 'morgan'
 import { mkdirSync } from 'node:fs'
 import { env, validateEnvOrThrow } from './config/env.js'
 import { paths } from './config/paths.js'
-import { getModuleName, getModuleRule, moduleCatalog } from './config/catalog.js'
+import { getModuleKeyVariants, getModuleName, getModuleRule, moduleCatalog, normalizeModuleKey } from './config/catalog.js'
 import {
   platformMenuCatalog,
   platformModuleCatalog,
@@ -56,6 +56,8 @@ export async function createBackendApp() {
     platformMenuCatalog,
   })
 
+  const moduleLogicService = createModuleLogicService()
+
   const reportService = createReportService({
     paths,
     getModuleName,
@@ -94,7 +96,7 @@ export async function createBackendApp() {
     securityService,
   })
 
-  const authMiddleware = createAuthMiddleware({
+  const { authMiddleware } = createAuthMiddleware({
     dataRepository,
     securityService,
   })

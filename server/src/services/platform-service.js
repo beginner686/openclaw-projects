@@ -257,7 +257,7 @@ export function createPlatformService({ platformRepository, securityService }) {
     const p = await helpers.ensurePool()
     const [rows] = await p.query(
       `SELECT
-          t.id,
+          t.tenant_id AS id,
           t.tenant_code,
           t.tenant_name,
           t.status,
@@ -268,18 +268,18 @@ export function createPlatformService({ platformRepository, securityService }) {
           tp.started_at,
           tp.expired_at,
           pp.package_code,
-          pp.package_name,
-          pp.package_type,
-          COUNT(DISTINCT u.id) AS user_count,
-          COUNT(DISTINCT CASE WHEN tm.status = 'enabled' THEN tm.module_code END) AS enabled_module_count
+         pp.package_name,
+         pp.package_type,
+         COUNT(DISTINCT u.id) AS user_count,
+         COUNT(DISTINCT CASE WHEN tm.status = 'enabled' THEN tm.module_code END) AS enabled_module_count
        FROM tenants t
-       LEFT JOIN tenant_packages tp ON tp.tenant_id = t.id
+       LEFT JOIN tenant_packages tp ON tp.tenant_id = t.tenant_id
        LEFT JOIN package_plans pp ON pp.id = tp.package_id
-       LEFT JOIN users u ON u.tenant_id = t.id
-       LEFT JOIN tenant_modules tm ON tm.tenant_id = t.id
+       LEFT JOIN users u ON u.tenant_id = t.tenant_id
+       LEFT JOIN tenant_modules tm ON tm.tenant_id = t.tenant_id
        ${whereSql}
        GROUP BY
-         t.id, t.tenant_code, t.tenant_name, t.status, t.created_at, t.updated_at,
+         t.tenant_id, t.tenant_code, t.tenant_name, t.status, t.created_at, t.updated_at,
          tp.package_id, tp.status, tp.started_at, tp.expired_at,
          pp.package_code, pp.package_name, pp.package_type
        ORDER BY t.created_at DESC
@@ -488,10 +488,10 @@ export function createPlatformService({ platformRepository, securityService }) {
     const requestedTenantId = String(query?.tenantId ?? '').trim()
 
     if (!isPlatformAdmin(authUser)) {
-      where.push('t.id = ?')
+      where.push('t.tenant_id = ?')
       args.push(authUser.tenantId)
     } else if (requestedTenantId) {
-      where.push('t.id = ?')
+      where.push('t.tenant_id = ?')
       args.push(requestedTenantId)
     }
 
@@ -520,7 +520,7 @@ export function createPlatformService({ platformRepository, securityService }) {
     const safeTenantId = String(tenantId ?? '').trim()
     assertTenantManager(authUser, safeTenantId, 'no permission to view tenant')
 
-    const list = await buildTenantQuery('WHERE t.id = ?', [safeTenantId], 1, 0)
+    const list = await buildTenantQuery('WHERE t.tenant_id = ?', [safeTenantId], 1, 0)
     assertOrThrow(list.length > 0, { status: 404, code: 40431, message: 'tenant not found' })
 
     const p = await helpers.ensurePool()
@@ -549,7 +549,7 @@ export function createPlatformService({ platformRepository, securityService }) {
           u.updated_at,
           GROUP_CONCAT(DISTINCT r.role_code ORDER BY r.role_code SEPARATOR ',') AS role_codes
        FROM users u
-       LEFT JOIN tenants t ON t.id = u.tenant_id
+       LEFT JOIN tenants t ON t.tenant_id = u.tenant_id
        LEFT JOIN user_roles ur ON ur.user_id = u.id AND ur.tenant_id = u.tenant_id
        LEFT JOIN roles r ON r.id = ur.role_id
        WHERE u.tenant_id = ?
@@ -590,12 +590,12 @@ export function createPlatformService({ platformRepository, securityService }) {
     })
 
     const p = await helpers.ensurePool()
-    const [tenantCodeRows] = await p.query('SELECT id FROM tenants WHERE tenant_code = ? LIMIT 1', [tenantCode])
+    const [tenantCodeRows] = await p.query('SELECT tenant_id FROM tenants WHERE tenant_code = ? LIMIT 1', [tenantCode])
     assertOrThrow(tenantCodeRows.length === 0, { status: 409, code: 40921, message: 'tenantCode already exists' })
 
     const tenantId = `t-${randomBytes(5).toString('hex')}`
     await p.query(
-      `INSERT INTO tenants (id, tenant_code, tenant_name, status)
+      `INSERT INTO tenants (tenant_id, tenant_code, tenant_name, status)
        VALUES (?, ?, ?, ?)`,
       [tenantId, tenantCode, tenantName, normalizeStatus(payload?.status, ['active', 'disabled'], 'active')],
     )
@@ -909,7 +909,7 @@ export function createPlatformService({ platformRepository, securityService }) {
           u.updated_at,
           GROUP_CONCAT(DISTINCT r.role_code ORDER BY r.role_code SEPARATOR ',') AS role_codes
        FROM users u
-       LEFT JOIN tenants t ON t.id = u.tenant_id
+       LEFT JOIN tenants t ON t.tenant_id = u.tenant_id
        LEFT JOIN user_roles ur ON ur.user_id = u.id AND ur.tenant_id = u.tenant_id
        LEFT JOIN roles r ON r.id = ur.role_id
        ${whereSql}
@@ -946,7 +946,7 @@ export function createPlatformService({ platformRepository, securityService }) {
           u.updated_at,
           GROUP_CONCAT(DISTINCT r.role_code ORDER BY r.role_code SEPARATOR ',') AS role_codes
        FROM users u
-       LEFT JOIN tenants t ON t.id = u.tenant_id
+       LEFT JOIN tenants t ON t.tenant_id = u.tenant_id
        LEFT JOIN user_roles ur ON ur.user_id = u.id AND ur.tenant_id = u.tenant_id
        LEFT JOIN roles r ON r.id = ur.role_id
        WHERE u.id = ?
@@ -991,7 +991,7 @@ export function createPlatformService({ platformRepository, securityService }) {
     }
 
     const p = await helpers.ensurePool()
-    const [tenantRows] = await p.query('SELECT id FROM tenants WHERE id = ? LIMIT 1', [tenantId])
+    const [tenantRows] = await p.query('SELECT tenant_id FROM tenants WHERE tenant_id = ? LIMIT 1', [tenantId])
     assertOrThrow(tenantRows.length > 0, { status: 404, code: 40431, message: 'tenant not found' })
 
     const [dupRows] = await p.query(
@@ -1235,7 +1235,7 @@ export function createPlatformService({ platformRepository, securityService }) {
     assertOrThrow(packageId > 0, { status: 400, code: 40030, message: 'packageId is required' })
 
     const p = await helpers.ensurePool()
-    const [tenantRows] = await p.query('SELECT id FROM tenants WHERE id = ? LIMIT 1', [safeTenantId])
+    const [tenantRows] = await p.query('SELECT tenant_id FROM tenants WHERE tenant_id = ? LIMIT 1', [safeTenantId])
     assertOrThrow(tenantRows.length > 0, { status: 404, code: 40431, message: 'tenant not found' })
 
     const [packageRows] = await p.query('SELECT id FROM package_plans WHERE id = ? LIMIT 1', [packageId])
