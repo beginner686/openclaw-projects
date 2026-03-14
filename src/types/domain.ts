@@ -14,6 +14,7 @@ export interface ModuleMeta {
 
 export interface AuthUser {
   id: string
+  tenantId: string
   name: string
   contact: string
   enabledModules: string[]
@@ -58,6 +59,19 @@ export interface ModuleTaskPayload {
   scenario: string
   inputText: string
   attachments: string[]
+}
+
+export interface ModuleTaskSchemaMetric {
+  key: string
+  label: string
+  unit: string
+}
+
+export interface ModuleTaskSchema {
+  scenarios: string[]
+  inputHints: string[]
+  samplePrompt: string
+  metrics: ModuleTaskSchemaMetric[]
 }
 
 export interface AuthResponse {

@@ -13,6 +13,7 @@ const seedAccounts = new Map<string, AccountEntry>([
       password: '123456',
       user: {
         id: 'u-demo-001',
+        tenantId: 't-demo-001',
         name: '演示客户',
         contact: 'demo@openclaw.ai',
         enabledModules: moduleCatalog.map((item) => item.moduleKey),
@@ -27,6 +28,7 @@ const seedAccounts = new Map<string, AccountEntry>([
       password: '123456',
       user: {
         id: 'u-lite-002',
+        tenantId: 't-lite-002',
         name: '轻量客户',
         contact: 'lite@openclaw.ai',
         enabledModules: moduleCatalog.slice(0, 8).map((item) => item.moduleKey),
@@ -103,6 +105,7 @@ export function registerAccount(name: string, contact: string, password: string)
 
   const user: AuthUser = {
     id: `u-${Math.random().toString(36).slice(2, 8)}`,
+    tenantId: `t-${Math.random().toString(36).slice(2, 8)}`,
     name: name.trim() || '新客户',
     contact: normalized,
     enabledModules: moduleCatalog.slice(0, 10).map((item) => item.moduleKey),

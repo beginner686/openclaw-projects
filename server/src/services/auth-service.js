@@ -6,12 +6,19 @@ export function createAuthService({ dataRepository, securityService, moduleCatal
   function toAuthUser(storedUser) {
     return {
       id: storedUser.id,
+      tenantId: storedUser.tenantId ?? 't-platform',
       name: storedUser.name,
       contact: storedUser.contact,
       enabledModules: storedUser.enabledModules,
       role: storedUser.role,
       tokenState: storedUser.tokenState,
     }
+  }
+
+  function createTenantIdFromUserId(userId = '') {
+    const normalized = String(userId).trim().toLowerCase().replace(/[^a-z0-9_-]/g, '')
+    if (!normalized) return `t-${Date.now().toString(36)}`
+    return `t-${normalized}`.slice(0, 64)
   }
 
   async function login({ account, password, remember }) {
@@ -21,7 +28,9 @@ export function createAuthService({ dataRepository, securityService, moduleCatal
       return fail(400, 'AUTH_MISSING_CREDENTIALS', '账号和密码不能为空。')
     }
 
-    const user = await dataRepository.findUserByContact(normalized)
+    const user = dataRepository.findUserByAccount
+      ? await dataRepository.findUserByAccount(normalized)
+      : await dataRepository.findUserByContact(normalized)
     if (!user) {
       return fail(401, 'AUTH_INVALID_CREDENTIALS', '账号或密码错误。')
     }
@@ -71,16 +80,23 @@ export function createAuthService({ dataRepository, securityService, moduleCatal
           'smart-grocery-supermarket',
         ]),
       ]
+    const userId = securityService.createUserId()
+    const tenantId = createTenantIdFromUserId(userId)
     const user = securityService.createStoredUser({
-      id: securityService.createUserId(),
+      id: userId,
+      tenantId,
       name: safeName,
       contact: safeContact,
       password: safePassword,
       enabledModules,
       role: safeRole,
     })
-    await dataRepository.insertUser(user)
-    await dataRepository.insertTasks(dataRepository.createSeedTasks(user.id, user.enabledModules))
+    await dataRepository.insertUser({
+      ...user,
+      tenantType: safeRole === 'admin' ? 'enterprise' : 'personal',
+      tenantName: `${safeName}租户`,
+    })
+    await dataRepository.insertTasks(dataRepository.createSeedTasks(user.id, user.enabledModules, user.tenantId))
 
     const token = securityService.signAuthToken({
       userId: user.id,

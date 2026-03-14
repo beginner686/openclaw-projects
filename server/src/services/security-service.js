@@ -22,10 +22,12 @@ export function createSecurityService({ env }) {
     return bcrypt.compareSync(toPepperedPassword(rawPassword), storedUser.passwordHash)
   }
 
-  function createStoredUser({ id, name, contact, password, enabledModules, role = 'customer' }) {
+  function createStoredUser({ id, username = '', tenantId = 't-platform-001', name, contact, password, enabledModules, role = 'customer', status = 'active' }) {
     const salt = randomBytes(16).toString('hex')
     return {
       id,
+      tenantId,
+      username,
       name,
       contact: contact.toLowerCase(),
       passwordSalt: salt,
@@ -33,13 +35,18 @@ export function createSecurityService({ env }) {
       passwordAlgo: 'bcrypt',
       enabledModules,
       role,
+      status,
       tokenState: 'active',
       tokenVersion: 0,
     }
   }
 
-  function signAuthToken({ userId, role, remember, tokenVersion }) {
-    return jwt.sign({ sub: userId, role, tv: tokenVersion }, env.jwtSecret, {
+  function signAuthToken({ userId, role, remember, tokenVersion, tenantId = undefined }) {
+    const payload = { sub: userId, role, tv: tokenVersion }
+    if (tenantId) {
+      payload.tid = tenantId
+    }
+    return jwt.sign(payload, env.jwtSecret, {
       issuer: env.jwtIssuer,
       expiresIn: remember ? '30d' : '12h',
     })

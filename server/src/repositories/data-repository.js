@@ -1,4 +1,4 @@
-import mysql from 'mysql2/promise'
+﻿import mysql from 'mysql2/promise'
 
 function toJson(value) {
   return JSON.stringify(value ?? [])
@@ -39,9 +39,24 @@ function extractReportFile(reportUrl) {
   return fileName || null
 }
 
+function mapTenantRow(row) {
+  return {
+    tenantId: row.tenant_id,
+    tenantCode: row.tenant_code,
+    tenantName: row.tenant_name,
+    tenantType: row.tenant_type,
+    status: row.status,
+    isolationLevel: row.isolation_level ?? 'logical',
+    ownerUserId: row.owner_user_id ?? null,
+    createdAt: row.created_at ? toIso(row.created_at) : null,
+    updatedAt: row.updated_at ? toIso(row.updated_at) : null,
+  }
+}
+
 function mapUserRow(row) {
   return {
     id: row.id,
+    tenantId: row.tenant_id ?? 't-platform',
     name: row.name,
     contact: row.contact,
     passwordSalt: row.password_salt,
@@ -57,6 +72,7 @@ function mapUserRow(row) {
 function mapTaskRow(row) {
   return {
     taskId: row.task_id,
+    tenantId: row.tenant_id ?? 't-platform',
     ownerId: row.owner_id,
     moduleKey: row.module_key,
     scenario: row.scenario,
@@ -166,6 +182,23 @@ function mapAntiFraudComplaintRow(row) {
     factsSummary: row.facts_summary ?? '',
     generatedText: row.generated_text ?? '',
     channelSuggestions: parseJson(row.channel_suggestions_json, []),
+    createdAt: toIso(row.created_at),
+    updatedAt: toIso(row.updated_at),
+  }
+}
+
+function mapFeatureRecordRow(row) {
+  return {
+    recordId: row.record_id,
+    tenantId: row.tenant_id ?? 't-platform',
+    taskId: row.task_id,
+    ownerId: row.owner_id,
+    moduleKey: row.module_key,
+    featureKey: row.feature_key,
+    featureName: row.feature_name,
+    scenario: row.scenario,
+    status: row.status,
+    payload: parseJson(row.payload_json, {}),
     createdAt: toIso(row.created_at),
     updatedAt: toIso(row.updated_at),
   }
@@ -319,10 +352,13 @@ export function createDataRepository({
   moduleCatalog,
   securityService,
   getModuleName,
-  normalizeModuleKey,
-  getModuleKeyVariants,
+  normalizeModuleKey = (value) => String(value ?? '').trim(),
+  getModuleKeyVariants = (value) => [String(value ?? '').trim()].filter(Boolean),
 }) {
   let pool = null
+  const PLATFORM_TENANT_ID = 't-platform'
+  const PLATFORM_TENANT_CODE = 'platform'
+  const PLATFORM_TENANT_NAME = '骞冲彴榛樿绉熸埛'
 
   async function ensureDatabaseExists() {
     const connection = await mysql.createConnection({
@@ -381,52 +417,86 @@ export function createDataRepository({
     return new Date(Date.now() - hoursAgo * 60 * 60 * 1000).toISOString()
   }
 
-  function createSeedTasks(ownerId, enabledModules) {
+  function resolveTenantId(value, fallback = PLATFORM_TENANT_ID) {
+    const normalized = String(value ?? '').trim()
+    if (!normalized) return fallback
+    return normalized.slice(0, 64)
+  }
+
+  function createTenantCode(raw) {
+    const source = String(raw ?? '').trim().toLowerCase()
+    if (!source) return `tenant-${Date.now().toString(36)}`
+    const cleaned = source
+      .replace(/[^a-z0-9_-]+/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '')
+      .slice(0, 80)
+    return cleaned || `tenant-${Date.now().toString(36)}`
+  }
+
+  function createSeedTasks(ownerId, enabledModules, tenantId = PLATFORM_TENANT_ID) {
     const ownerSeed = ownerId.replace(/[^a-zA-Z0-9_-]/g, '')
-    return normalizeModuleKeys(enabledModules)
-      .slice(0, 4)
-      .flatMap((moduleKey, index) => {
-        const moduleName = getModuleName(moduleKey)
-        return [
-          {
-            taskId: `${ownerSeed}-${moduleKey}-seed-${index + 1}-a`,
-            ownerId,
-            moduleKey,
-            scenario: '标准流程',
-            inputText: `${moduleName}初始化样例任务，生成首版分析报告。`,
-            attachments: [],
-            status: 'completed',
-            summary: `${moduleName}初始化任务已完成。`,
-            updatedAt: nowIso(index + 3),
-            createdAt: nowIso(index + 5),
-            reportUrl: '',
-            reportFormat: 'html',
-            errorMessage: undefined,
-          },
-          {
-            taskId: `${ownerSeed}-${moduleKey}-seed-${index + 1}-b`,
-            ownerId,
-            moduleKey,
-            scenario: '加急执行',
-            inputText: `请基于最新输入继续处理${moduleName}任务。`,
-            attachments: [],
-            status: 'queued',
-            summary: `${moduleName}任务已进入执行队列。`,
-            updatedAt: nowIso(index + 1),
-            createdAt: nowIso(index + 2),
-            reportUrl: '',
-            reportFormat: 'html',
-            errorMessage: undefined,
-          },
-        ]
-      })
+    return normalizeModuleKeys(enabledModules).slice(0, 4).flatMap((moduleKey, index) => {
+      const moduleName = getModuleName(moduleKey)
+      return [
+        {
+          taskId: `${ownerSeed}-${moduleKey}-seed-${index + 1}-a`,
+          tenantId: resolveTenantId(tenantId),
+          ownerId,
+          moduleKey,
+          scenario: 'standard',
+          inputText: `Bootstrap ${moduleName} sample task and generate the first report.`,
+          attachments: [],
+          status: 'completed',
+          summary: `${moduleName} seed task completed.`,
+          updatedAt: nowIso(index + 3),
+          createdAt: nowIso(index + 5),
+          reportUrl: '',
+          reportFormat: 'html',
+          errorMessage: undefined,
+        },
+        {
+          taskId: `${ownerSeed}-${moduleKey}-seed-${index + 1}-b`,
+          tenantId: resolveTenantId(tenantId),
+          ownerId,
+          moduleKey,
+          scenario: 'priority',
+          inputText: `Continue processing the latest ${moduleName} task input.`,
+          attachments: [],
+          status: 'queued',
+          summary: `${moduleName} task queued for execution.`,
+          updatedAt: nowIso(index + 1),
+          createdAt: nowIso(index + 2),
+          reportUrl: '',
+          reportFormat: 'html',
+          errorMessage: undefined,
+        },
+      ]
+    })
   }
 
   async function setupSchema() {
     const p = await ensurePool()
     await p.query(`
+      CREATE TABLE IF NOT EXISTS tenants (
+        tenant_id VARCHAR(64) PRIMARY KEY,
+        tenant_code VARCHAR(100) NOT NULL UNIQUE,
+        tenant_name VARCHAR(120) NOT NULL,
+        tenant_type VARCHAR(30) NOT NULL DEFAULT 'personal',
+        status VARCHAR(20) NOT NULL DEFAULT 'active',
+        isolation_level VARCHAR(20) NOT NULL DEFAULT 'logical',
+        owner_user_id VARCHAR(64) NULL,
+        created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+        updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+        INDEX idx_tenants_owner (owner_user_id),
+        INDEX idx_tenants_type_status (tenant_type, status)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `)
+
+    await p.query(`
       CREATE TABLE IF NOT EXISTS users (
         id VARCHAR(64) PRIMARY KEY,
+        tenant_id VARCHAR(64) NOT NULL DEFAULT '${PLATFORM_TENANT_ID}',
         name VARCHAR(100) NOT NULL,
         contact VARCHAR(191) NOT NULL UNIQUE,
         password_salt VARCHAR(128) NOT NULL,
@@ -437,7 +507,9 @@ export function createDataRepository({
         token_state VARCHAR(20) NOT NULL DEFAULT 'active',
         token_version INT NOT NULL DEFAULT 0,
         created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-        updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3)
+        updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+        INDEX idx_users_tenant (tenant_id),
+        CONSTRAINT fk_users_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(tenant_id) ON DELETE RESTRICT
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `)
 
@@ -445,6 +517,7 @@ export function createDataRepository({
       CREATE TABLE IF NOT EXISTS tasks (
         id BIGINT PRIMARY KEY AUTO_INCREMENT,
         task_id VARCHAR(128) NOT NULL UNIQUE,
+        tenant_id VARCHAR(64) NOT NULL DEFAULT '${PLATFORM_TENANT_ID}',
         owner_id VARCHAR(64) NOT NULL,
         module_key VARCHAR(100) NOT NULL,
         scenario VARCHAR(100) NOT NULL,
@@ -459,8 +532,10 @@ export function createDataRepository({
         created_at DATETIME(3) NOT NULL,
         updated_at DATETIME(3) NOT NULL,
         INDEX idx_tasks_owner_module_updated (owner_id, module_key, updated_at),
+        INDEX idx_tasks_tenant_module_status (tenant_id, module_key, status, updated_at),
         INDEX idx_tasks_status_created (status, created_at),
         INDEX idx_tasks_report_file (report_file),
+        CONSTRAINT fk_tasks_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(tenant_id) ON DELETE RESTRICT,
         CONSTRAINT fk_tasks_owner FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `)
@@ -468,7 +543,8 @@ export function createDataRepository({
     await p.query(`
       CREATE TABLE IF NOT EXISTS module_settings (
         id BIGINT PRIMARY KEY AUTO_INCREMENT,
-        module_key VARCHAR(100) NOT NULL UNIQUE,
+        tenant_id VARCHAR(64) NOT NULL DEFAULT '${PLATFORM_TENANT_ID}',
+        module_key VARCHAR(100) NOT NULL,
         config_json JSON NOT NULL,
         updated_by VARCHAR(64) NULL,
         created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
@@ -579,8 +655,140 @@ export function createDataRepository({
     `)
   }
 
+  async function ensureTenantExists(tenant = {}) {
+    const p = await ensurePool()
+    const tenantId = resolveTenantId(tenant.tenantId)
+    const tenantCode = createTenantCode(tenant.tenantCode || tenantId)
+    const tenantName = String(tenant.tenantName || tenantCode || 'unnamed-tenant').slice(0, 120)
+    const tenantType = String(tenant.tenantType || 'personal').slice(0, 30)
+    const status = String(tenant.status || 'active').slice(0, 20)
+    const isolationLevel = String(tenant.isolationLevel || 'logical').slice(0, 20)
+    const ownerUserId = tenant.ownerUserId ? String(tenant.ownerUserId) : null
+
+    await p.query(
+      `INSERT INTO tenants (tenant_id, tenant_code, tenant_name, tenant_type, status, isolation_level, owner_user_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE
+         tenant_code = VALUES(tenant_code),
+         tenant_name = VALUES(tenant_name),
+         tenant_type = VALUES(tenant_type),
+         status = VALUES(status),
+         isolation_level = VALUES(isolation_level),
+         owner_user_id = COALESCE(tenants.owner_user_id, VALUES(owner_user_id)),
+         updated_at = CURRENT_TIMESTAMP(3)`,
+      [tenantId, tenantCode, tenantName, tenantType, status, isolationLevel, ownerUserId],
+    )
+    return tenantId
+  }
+
+  async function ensurePlatformTenant() {
+    return ensureTenantExists({
+      tenantId: PLATFORM_TENANT_ID,
+      tenantCode: PLATFORM_TENANT_CODE,
+      tenantName: PLATFORM_TENANT_NAME,
+      tenantType: 'internal',
+      status: 'active',
+      isolationLevel: 'logical',
+    })
+  }
+
+  async function seedDataDictionary() {
+    const p = await ensurePool()
+    const rows = [
+      ['role', 'admin', 'admin', 'Admin', 'System administrator account', 10],
+      ['role', 'customer', 'customer', 'Customer', 'Standard customer account', 20],
+      ['task_status', 'review', 'review', 'Review', 'Waiting for manual review', 10],
+      ['task_status', 'queued', 'queued', 'Queued', 'Waiting for execution', 20],
+      ['task_status', 'running', 'running', 'Running', 'Task is in progress', 30],
+      ['task_status', 'completed', 'completed', 'Completed', 'Execution completed successfully', 40],
+      ['task_status', 'failed', 'failed', 'Failed', 'Execution failed', 50],
+      ['tenant_type', 'internal', 'internal', 'Platform', 'Built-in platform tenant', 10],
+      ['tenant_type', 'enterprise', 'enterprise', 'Enterprise', 'Enterprise tenant', 20],
+      ['tenant_type', 'personal', 'personal', 'Personal', 'Personal tenant', 30],
+      ['tenant_status', 'active', 'active', 'Active', 'Tenant is active', 10],
+      ['tenant_status', 'inactive', 'inactive', 'Inactive', 'Tenant is inactive', 20],
+      ['module_category', 'enterprise', 'enterprise', 'Enterprise', 'Enterprise module', 10],
+      ['module_category', 'personal', 'personal', 'Personal', 'Personal module', 20],
+      ['setting_mode', 'auto', 'auto', 'Auto', 'Tasks run automatically', 10],
+      ['setting_mode', 'manual', 'manual', 'Manual', 'Tasks require manual approval', 20],
+      ['setting_mode', 'hybrid', 'hybrid', 'Hybrid', 'Risky tasks require approval', 30],
+    ]
+
+    for (const [dictType, dictKey, dictValue, dictLabel, description, sortOrder] of rows) {
+      await p.query(
+        `INSERT INTO data_dictionary
+         (dict_type, dict_key, dict_value, dict_label, description, sort_order, is_system, status)
+         VALUES (?, ?, ?, ?, ?, ?, 1, 'active')
+         ON DUPLICATE KEY UPDATE
+           dict_value = VALUES(dict_value),
+           dict_label = VALUES(dict_label),
+           description = VALUES(description),
+           sort_order = VALUES(sort_order),
+           status = 'active',
+           updated_at = CURRENT_TIMESTAMP(3)`,
+        [dictType, dictKey, dictValue, dictLabel, description, sortOrder],
+      )
+    }
+  }
+
   async function ensureSchemaMigrations() {
     const p = await ensurePool()
+
+    const [tenantTableRows] = await p.query("SHOW TABLES LIKE 'tenants'")
+    if (!tenantTableRows.length) {
+      await p.query(`
+        CREATE TABLE tenants (
+          tenant_id VARCHAR(64) PRIMARY KEY,
+          tenant_code VARCHAR(100) NOT NULL UNIQUE,
+          tenant_name VARCHAR(120) NOT NULL,
+          tenant_type VARCHAR(30) NOT NULL DEFAULT 'personal',
+          status VARCHAR(20) NOT NULL DEFAULT 'active',
+          isolation_level VARCHAR(20) NOT NULL DEFAULT 'logical',
+          owner_user_id VARCHAR(64) NULL,
+          created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+          updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+          INDEX idx_tenants_owner (owner_user_id),
+          INDEX idx_tenants_type_status (tenant_type, status)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+      `)
+    }
+    await ensurePlatformTenant()
+
+    const [dictionaryTableRows] = await p.query("SHOW TABLES LIKE 'data_dictionary'")
+    if (!dictionaryTableRows.length) {
+      await p.query(`
+        CREATE TABLE data_dictionary (
+          id BIGINT PRIMARY KEY AUTO_INCREMENT,
+          dict_type VARCHAR(80) NOT NULL,
+          dict_key VARCHAR(120) NOT NULL,
+          dict_value VARCHAR(191) NOT NULL,
+          dict_label VARCHAR(191) NOT NULL,
+          description VARCHAR(255) NULL,
+          sort_order INT NOT NULL DEFAULT 0,
+          is_system TINYINT(1) NOT NULL DEFAULT 1,
+          status VARCHAR(20) NOT NULL DEFAULT 'active',
+          created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+          updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+          UNIQUE KEY uniq_dict_type_key (dict_type, dict_key),
+          INDEX idx_dict_type_sort (dict_type, sort_order)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+      `)
+    }
+
+    const [tenantColsOnUsers] = await p.query("SHOW COLUMNS FROM users LIKE 'tenant_id'")
+    if (!tenantColsOnUsers.length) {
+      await p.query(`ALTER TABLE users ADD COLUMN tenant_id VARCHAR(64) NOT NULL DEFAULT '${PLATFORM_TENANT_ID}' AFTER id`)
+    }
+    await p.query(
+      `UPDATE users
+       SET tenant_id = COALESCE(NULLIF(tenant_id, ''), '${PLATFORM_TENANT_ID}')
+       WHERE tenant_id IS NULL OR tenant_id = ''`,
+    )
+    const [usersTenantIdx] = await p.query("SHOW INDEX FROM users WHERE Key_name = 'idx_users_tenant'")
+    if (!usersTenantIdx.length) {
+      await p.query('CREATE INDEX idx_users_tenant ON users(tenant_id)')
+    }
+
     const [algoCols] = await p.query("SHOW COLUMNS FROM users LIKE 'password_algo'")
     if (!algoCols.length) {
       await p.query("ALTER TABLE users ADD COLUMN password_algo VARCHAR(20) NOT NULL DEFAULT 'sha256' AFTER password_hash")
@@ -590,6 +798,17 @@ export function createDataRepository({
     if (!tokenVersionCols.length) {
       await p.query("ALTER TABLE users ADD COLUMN token_version INT NOT NULL DEFAULT 0 AFTER token_state")
     }
+
+    const [tenantColsOnTasks] = await p.query("SHOW COLUMNS FROM tasks LIKE 'tenant_id'")
+    if (!tenantColsOnTasks.length) {
+      await p.query(`ALTER TABLE tasks ADD COLUMN tenant_id VARCHAR(64) NOT NULL DEFAULT '${PLATFORM_TENANT_ID}' AFTER task_id`)
+    }
+    await p.query(
+      `UPDATE tasks t
+       LEFT JOIN users u ON u.id = t.owner_id
+       SET t.tenant_id = COALESCE(NULLIF(u.tenant_id, ''), '${PLATFORM_TENANT_ID}')
+       WHERE t.tenant_id IS NULL OR t.tenant_id = ''`,
+    )
 
     const [reportFileCols] = await p.query("SHOW COLUMNS FROM tasks LIKE 'report_file'")
     if (!reportFileCols.length) {
@@ -627,6 +846,8 @@ export function createDataRepository({
         AND report_url <> ''
         AND (report_file IS NULL OR report_file = '')
     `)
+
+    await seedDataDictionary()
   }
 
   async function ensureModuleKeyMigrations() {
@@ -714,28 +935,30 @@ export function createDataRepository({
       const fullModules = moduleCatalog.map((item) => item.moduleKey)
       const demoUser = securityService.createStoredUser({
         id: 'u-demo-001',
-        name: '演示客户',
+        tenantId: 't-demo-001',
+        name: '婕旂ず瀹㈡埛',
         contact: 'demo@openclaw.ai',
         password: '123456',
         enabledModules: fullModules,
       })
       const liteUser = securityService.createStoredUser({
         id: 'u-lite-002',
-        name: '轻量客户',
+        tenantId: 't-lite-002',
+        name: '杞婚噺瀹㈡埛',
         contact: 'lite@openclaw.ai',
         password: '123456',
         enabledModules: fullModules.slice(0, 8),
       })
 
-      await insertUser(demoUser)
-      await insertUser(liteUser)
+      await insertUser({ ...demoUser, tenantType: 'enterprise', tenantName: 'Demo Tenant' })
+      await insertUser({ ...liteUser, tenantType: 'personal', tenantName: 'Lite Tenant' })
     }
 
     if (tasksCount === 0) {
       const [rows] = await p.query('SELECT * FROM users ORDER BY created_at ASC LIMIT 10')
       const seedTasks = rows.flatMap((row) => {
-        const user = mapUser(row)
-        return createSeedTasks(user.id, user.enabledModules)
+        const user = mapUserRow(row)
+        return createSeedTasks(user.id, user.enabledModules, user.tenantId)
       })
       await insertTasks(seedTasks)
     }
@@ -747,7 +970,7 @@ export function createDataRepository({
         if (user.id === 'u-demo-001') {
           await upsertAntiFraudSubscription(user.id, {
             planCode: 'standard',
-            planName: '标准版',
+            planName: 'Standard',
             status: 'active',
             startsAt: nowIso(24),
             expiresAt: nowIso(-24 * 90),
@@ -760,7 +983,7 @@ export function createDataRepository({
         } else {
           await upsertAntiFraudSubscription(user.id, {
             planCode: 'basic',
-            planName: '基础版',
+            planName: 'Basic',
             status: 'active',
             startsAt: nowIso(24),
             expiresAt: nowIso(-24 * 30),
@@ -780,10 +1003,10 @@ export function createDataRepository({
         ownerId: 'u-demo-001',
         targetType: 'short-video-account',
         platform: 'douyin',
-        anchorName: '养生课堂A',
+        anchorName: 'Health Talk A',
         accountHandle: '@health-a',
         roomLink: 'https://example.com/live/health-a',
-        notes: '父母高频观看账号，重点监测。',
+        notes: 'Frequently watched by family members; track closely.',
         status: 'active',
         createdAt: nowIso(12),
         updatedAt: nowIso(12),
@@ -793,10 +1016,10 @@ export function createDataRepository({
         ownerId: 'u-demo-001',
         targetType: 'live-room',
         platform: 'kuaishou',
-        anchorName: '名医速成课',
+        anchorName: 'Doctor Fast Pitch',
         accountHandle: '@doctor-fast',
         roomLink: 'https://example.com/live/doctor-fast',
-        notes: '直播间存在高风险销售话术。',
+        notes: 'Live room appears to use aggressive medical sales language.',
         status: 'active',
         createdAt: nowIso(10),
         updatedAt: nowIso(10),
@@ -806,10 +1029,10 @@ export function createDataRepository({
         ownerId: 'u-lite-002',
         targetType: 'short-video-account',
         platform: 'douyin',
-        anchorName: '健康分享B',
+        anchorName: 'Health Share B',
         accountHandle: '@health-b',
         roomLink: 'https://example.com/live/health-b',
-        notes: '轻量账号测试样本。',
+        notes: 'Lightweight sample account for testing.',
         status: 'active',
         createdAt: nowIso(9),
         updatedAt: nowIso(9),
@@ -821,45 +1044,45 @@ export function createDataRepository({
         scanId: 'af-scan-demo-001',
         ownerId: 'u-demo-001',
         targetId: 'af-target-demo-01',
-        sourceTitle: '直播切片：三天逆转慢病',
+        sourceTitle: 'Live clip: cure chronic disease in three days',
         sourceLink: 'https://example.com/video/af-001',
-        contentText: '包治百病，不用吃药，医院都没法治，我们能治。',
+        contentText: 'Cure every illness without medicine. Even hospitals cannot do what we can do.',
         riskLevel: 'high',
         riskScore: 96,
-        riskTags: ['夸大宣传', '替代正规治疗', '绝对化承诺'],
-        hitPhrases: ['包治百病', '不用吃药', '医院都没法治'],
-        summary: '检测到高风险健康夸大宣传，请勿购买相关产品。',
-        safeAdvice: '仅保留客观健康常识，必要时咨询正规医疗机构。',
+        riskTags: ['medical-exaggeration', 'replace-formal-treatment', 'absolute-claim'],
+        hitPhrases: ['cure every illness', 'without medicine', 'even hospitals cannot'],
+        summary: 'Detected high-risk health misinformation and aggressive claims.',
+        safeAdvice: 'Do not buy related products. Verify information with licensed medical providers.',
         createdAt: nowIso(8),
       })
       await createAntiFraudScan({
         scanId: 'af-scan-demo-002',
         ownerId: 'u-demo-001',
         targetId: 'af-target-demo-02',
-        sourceTitle: '短视频：血管清理秘方',
+        sourceTitle: 'Short video: hidden blood vessel cleaning trick',
         sourceLink: 'https://example.com/video/af-002',
-        contentText: '所有医生都不知道的秘密，降压降糖立刻见效。',
+        contentText: 'A secret no doctor knows. Blood pressure and sugar drop instantly.',
         riskLevel: 'high',
         riskScore: 91,
-        riskTags: ['假权威话术', '医疗功效暗示'],
-        hitPhrases: ['所有医生都不知道的秘密', '降压降糖立刻见效'],
-        summary: '检测到高风险功效暗示内容，建议立即屏蔽并存证。',
-        safeAdvice: '拒绝功效承诺类营销内容，保留证据后按流程投诉。',
+        riskTags: ['fake-authority', 'medical-effect-suggestion'],
+        hitPhrases: ['no doctor knows', 'drop instantly'],
+        summary: 'Detected high-risk efficacy suggestion and fake authority wording.',
+        safeAdvice: 'Avoid effect-claim marketing content. Preserve evidence and report if needed.',
         createdAt: nowIso(6),
       })
       await createAntiFraudScan({
         scanId: 'af-scan-lite-001',
         ownerId: 'u-lite-002',
         targetId: 'af-target-lite-01',
-        sourceTitle: '健康饮食建议',
+        sourceTitle: 'Healthy diet suggestions',
         sourceLink: 'https://example.com/video/af-lite-001',
-        contentText: '建议规律作息、合理饮食，避免夸大宣传产品。',
+        contentText: 'Keep a regular routine, eat balanced meals, and avoid miracle-product claims.',
         riskLevel: 'low',
         riskScore: 18,
-        riskTags: ['客观科普'],
+        riskTags: ['general-education'],
         hitPhrases: [],
-        summary: '内容以常规健康建议为主，风险低。',
-        safeAdvice: '可继续关注，但保持理性消费习惯。',
+        summary: 'Content is general health guidance with low risk.',
+        safeAdvice: 'Safe to continue following, while keeping normal purchasing caution.',
         createdAt: nowIso(5),
       })
     }
@@ -872,8 +1095,8 @@ export function createDataRepository({
         targetId: 'af-target-demo-01',
         sourceLink: 'https://example.com/video/af-001',
         capturedAt: nowIso(8),
-        violationPoints: ['出现“包治百病”绝对化承诺', '出现“医院都没法治，我们能治”替代治疗话术'],
-        snapshotText: '截图帧 #12,#23 保存成功；直播标题含高风险短语。',
+        violationPoints: ['Contains absolute cure-all claim', 'Contains replacement-treatment claim'],
+        snapshotText: 'Screenshots #12 and #23 saved successfully; title contains high-risk phrases.',
         status: 'archived',
         createdAt: nowIso(8),
       })
@@ -884,8 +1107,8 @@ export function createDataRepository({
         targetId: 'af-target-demo-02',
         sourceLink: 'https://example.com/video/af-002',
         capturedAt: nowIso(6),
-        violationPoints: ['出现“所有医生都不知道的秘密”假权威话术', '出现“降压降糖立刻见效”功效暗示'],
-        snapshotText: '视频链接、发布时间、账号主页已归档。',
+        violationPoints: ['Uses fake authority wording', 'Uses instant effect promise'],
+        snapshotText: 'Video link, publish time, and account homepage were archived.',
         status: 'archived',
         createdAt: nowIso(6),
       })
@@ -905,11 +1128,14 @@ export function createDataRepository({
           lowRiskCount: 5,
         },
         highRiskItems: [
-          { scanId: 'af-scan-demo-001', title: '直播切片：三天逆转慢病', riskLevel: 'high' },
-          { scanId: 'af-scan-demo-002', title: '短视频：血管清理秘方', riskLevel: 'high' },
+          { scanId: 'af-scan-demo-001', title: 'Live clip: cure chronic disease in three days', riskLevel: 'high' },
+          { scanId: 'af-scan-demo-002', title: 'Short video: hidden blood vessel cleaning trick', riskLevel: 'high' },
         ],
-        safeItems: [{ scanId: 'af-scan-lite-001', title: '健康饮食建议', riskLevel: 'low' }],
-        recommendations: ['继续监测高风险主播并屏蔽重复违规内容。', '提醒家人避免冲动下单，先核验信息来源。'],
+        safeItems: [{ scanId: 'af-scan-lite-001', title: 'Healthy diet suggestions', riskLevel: 'low' }],
+        recommendations: [
+          'Continue monitoring high-risk anchors and archive repeated violations.',
+          'Remind family members not to buy impulsively before verifying the source.',
+        ],
         createdAt: nowIso(2),
       })
     }
@@ -921,10 +1147,10 @@ export function createDataRepository({
         status: 'ready',
         scenario: 'false-health-promotion',
         evidenceIds: ['af-evidence-demo-001'],
-        transactionNotes: '2026-03-10 通过直播间下单，金额 299 元。',
-        factsSummary: '主播在直播中使用绝对化承诺并引导下单。',
-        generatedText: '投诉请求：请核查该直播账号存在夸大健康宣传并误导消费行为，附证据材料。',
-        channelSuggestions: ['12315', '平台举报'],
+        transactionNotes: 'Placed an order through the live room on 2026-03-10, amount 299 CNY.',
+        factsSummary: 'The anchor used absolute claims during the live stream and induced purchase.',
+        generatedText: 'Complaint request: please verify the exaggerated health promotion and misleading sales behavior of this live account. Evidence attached.',
+        channelSuggestions: ['12315', 'platform-report'],
         createdAt: nowIso(1),
         updatedAt: nowIso(1),
       })
@@ -932,26 +1158,26 @@ export function createDataRepository({
 
     if (groceryFeedCount === 0) {
       const feedSeed = [
-        { platform: '朴朴', itemName: '西红柿', category: 'vegetable', displaySpec: '500g', specWeightG: 500, price: 3.99, dealTag: '特价', sourceTitle: '今日鲜蔬', sourceLink: 'https://example.com/grocery/pupu/tomato' },
-        { platform: '多多买菜', itemName: '西红柿', category: 'vegetable', displaySpec: '500g', specWeightG: 500, price: 4.29, dealTag: '日常价', sourceTitle: '蔬菜专区', sourceLink: 'https://example.com/grocery/dd/tomato' },
-        { platform: '美团优选', itemName: '西红柿', category: 'vegetable', displaySpec: '500g', specWeightG: 500, price: 4.59, dealTag: '日常价', sourceTitle: '每日优选', sourceLink: 'https://example.com/grocery/meituan/tomato' },
-        { platform: '盒马', itemName: '黄瓜', category: 'vegetable', displaySpec: '500g', specWeightG: 500, price: 3.69, dealTag: '爆款', sourceTitle: '生鲜热卖', sourceLink: 'https://example.com/grocery/hema/cucumber' },
-        { platform: '朴朴', itemName: '黄瓜', category: 'vegetable', displaySpec: '500g', specWeightG: 500, price: 3.89, dealTag: '日常价', sourceTitle: '今日鲜蔬', sourceLink: 'https://example.com/grocery/pupu/cucumber' },
-        { platform: '多多买菜', itemName: '土豆', category: 'vegetable', displaySpec: '1000g', specWeightG: 1000, price: 4.99, dealTag: '特价', sourceTitle: '家庭装', sourceLink: 'https://example.com/grocery/dd/potato' },
-        { platform: '美团优选', itemName: '土豆', category: 'vegetable', displaySpec: '1000g', specWeightG: 1000, price: 5.49, dealTag: '日常价', sourceTitle: '家常菜', sourceLink: 'https://example.com/grocery/meituan/potato' },
-        { platform: '盒马', itemName: '鸡蛋', category: 'protein', displaySpec: '10枚', specWeightG: 550, price: 8.90, dealTag: '特价', sourceTitle: '早餐专区', sourceLink: 'https://example.com/grocery/hema/egg' },
-        { platform: '朴朴', itemName: '鸡蛋', category: 'protein', displaySpec: '10枚', specWeightG: 550, price: 9.50, dealTag: '日常价', sourceTitle: '早餐专区', sourceLink: 'https://example.com/grocery/pupu/egg' },
-        { platform: '多多买菜', itemName: '鸡胸肉', category: 'protein', displaySpec: '500g', specWeightG: 500, price: 12.80, dealTag: '限时', sourceTitle: '肉禽优选', sourceLink: 'https://example.com/grocery/dd/chicken-breast' },
-        { platform: '美团优选', itemName: '鸡胸肉', category: 'protein', displaySpec: '500g', specWeightG: 500, price: 13.50, dealTag: '日常价', sourceTitle: '肉禽优选', sourceLink: 'https://example.com/grocery/meituan/chicken-breast' },
-        { platform: '盒马', itemName: '鸡胸肉', category: 'protein', displaySpec: '500g', specWeightG: 500, price: 14.20, dealTag: '日常价', sourceTitle: '肉禽优选', sourceLink: 'https://example.com/grocery/hema/chicken-breast' },
-        { platform: '朴朴', itemName: '五花肉', category: 'protein', displaySpec: '500g', specWeightG: 500, price: 19.90, dealTag: '日常价', sourceTitle: '猪肉专区', sourceLink: 'https://example.com/grocery/pupu/pork-belly' },
-        { platform: '美团优选', itemName: '五花肉', category: 'protein', displaySpec: '500g', specWeightG: 500, price: 18.60, dealTag: '特价', sourceTitle: '猪肉专区', sourceLink: 'https://example.com/grocery/meituan/pork-belly' },
-        { platform: '多多买菜', itemName: '大米', category: 'staple', displaySpec: '2500g', specWeightG: 2500, price: 12.90, dealTag: '爆款', sourceTitle: '粮油主食', sourceLink: 'https://example.com/grocery/dd/rice' },
-        { platform: '朴朴', itemName: '大米', category: 'staple', displaySpec: '2500g', specWeightG: 2500, price: 14.50, dealTag: '日常价', sourceTitle: '粮油主食', sourceLink: 'https://example.com/grocery/pupu/rice' },
-        { platform: '盒马', itemName: '挂面', category: 'staple', displaySpec: '1000g', specWeightG: 1000, price: 6.80, dealTag: '特价', sourceTitle: '主食专区', sourceLink: 'https://example.com/grocery/hema/noodle' },
-        { platform: '美团优选', itemName: '挂面', category: 'staple', displaySpec: '1000g', specWeightG: 1000, price: 7.10, dealTag: '日常价', sourceTitle: '主食专区', sourceLink: 'https://example.com/grocery/meituan/noodle' },
-        { platform: '朴朴', itemName: '青菜', category: 'vegetable', displaySpec: '500g', specWeightG: 500, price: 2.99, dealTag: '限时', sourceTitle: '今日鲜蔬', sourceLink: 'https://example.com/grocery/pupu/greens' },
-        { platform: '多多买菜', itemName: '青菜', category: 'vegetable', displaySpec: '500g', specWeightG: 500, price: 3.49, dealTag: '日常价', sourceTitle: '今日鲜蔬', sourceLink: 'https://example.com/grocery/dd/greens' },
+        { platform: 'pupu', itemName: 'tomato', category: 'vegetable', displaySpec: '500g', specWeightG: 500, price: 3.99, dealTag: 'promo', sourceTitle: 'today fresh', sourceLink: 'https://example.com/grocery/pupu/tomato' },
+        { platform: 'duoduo', itemName: 'tomato', category: 'vegetable', displaySpec: '500g', specWeightG: 500, price: 4.29, dealTag: 'regular', sourceTitle: 'vegetable zone', sourceLink: 'https://example.com/grocery/dd/tomato' },
+        { platform: 'meituan', itemName: 'tomato', category: 'vegetable', displaySpec: '500g', specWeightG: 500, price: 4.59, dealTag: 'regular', sourceTitle: 'daily picks', sourceLink: 'https://example.com/grocery/meituan/tomato' },
+        { platform: 'hema', itemName: 'cucumber', category: 'vegetable', displaySpec: '500g', specWeightG: 500, price: 3.69, dealTag: 'hot', sourceTitle: 'fresh bestseller', sourceLink: 'https://example.com/grocery/hema/cucumber' },
+        { platform: 'pupu', itemName: 'cucumber', category: 'vegetable', displaySpec: '500g', specWeightG: 500, price: 3.89, dealTag: 'regular', sourceTitle: 'today fresh', sourceLink: 'https://example.com/grocery/pupu/cucumber' },
+        { platform: 'duoduo', itemName: 'potato', category: 'vegetable', displaySpec: '1000g', specWeightG: 1000, price: 4.99, dealTag: 'promo', sourceTitle: 'family pack', sourceLink: 'https://example.com/grocery/dd/potato' },
+        { platform: 'meituan', itemName: 'potato', category: 'vegetable', displaySpec: '1000g', specWeightG: 1000, price: 5.49, dealTag: 'regular', sourceTitle: 'family kitchen', sourceLink: 'https://example.com/grocery/meituan/potato' },
+        { platform: 'hema', itemName: 'egg', category: 'protein', displaySpec: '10pcs', specWeightG: 550, price: 8.9, dealTag: 'promo', sourceTitle: 'breakfast zone', sourceLink: 'https://example.com/grocery/hema/egg' },
+        { platform: 'pupu', itemName: 'egg', category: 'protein', displaySpec: '10pcs', specWeightG: 550, price: 9.5, dealTag: 'regular', sourceTitle: 'breakfast zone', sourceLink: 'https://example.com/grocery/pupu/egg' },
+        { platform: 'duoduo', itemName: 'chicken-breast', category: 'protein', displaySpec: '500g', specWeightG: 500, price: 12.8, dealTag: 'limited', sourceTitle: 'protein picks', sourceLink: 'https://example.com/grocery/dd/chicken-breast' },
+        { platform: 'meituan', itemName: 'chicken-breast', category: 'protein', displaySpec: '500g', specWeightG: 500, price: 13.5, dealTag: 'regular', sourceTitle: 'protein picks', sourceLink: 'https://example.com/grocery/meituan/chicken-breast' },
+        { platform: 'hema', itemName: 'chicken-breast', category: 'protein', displaySpec: '500g', specWeightG: 500, price: 14.2, dealTag: 'regular', sourceTitle: 'protein picks', sourceLink: 'https://example.com/grocery/hema/chicken-breast' },
+        { platform: 'pupu', itemName: 'pork-belly', category: 'protein', displaySpec: '500g', specWeightG: 500, price: 19.9, dealTag: 'regular', sourceTitle: 'meat section', sourceLink: 'https://example.com/grocery/pupu/pork-belly' },
+        { platform: 'meituan', itemName: 'pork-belly', category: 'protein', displaySpec: '500g', specWeightG: 500, price: 18.6, dealTag: 'promo', sourceTitle: 'meat section', sourceLink: 'https://example.com/grocery/meituan/pork-belly' },
+        { platform: 'duoduo', itemName: 'rice', category: 'staple', displaySpec: '2500g', specWeightG: 2500, price: 12.9, dealTag: 'hot', sourceTitle: 'grain staple', sourceLink: 'https://example.com/grocery/dd/rice' },
+        { platform: 'pupu', itemName: 'rice', category: 'staple', displaySpec: '2500g', specWeightG: 2500, price: 14.5, dealTag: 'regular', sourceTitle: 'grain staple', sourceLink: 'https://example.com/grocery/pupu/rice' },
+        { platform: 'hema', itemName: 'noodle', category: 'staple', displaySpec: '1000g', specWeightG: 1000, price: 6.8, dealTag: 'promo', sourceTitle: 'staple zone', sourceLink: 'https://example.com/grocery/hema/noodle' },
+        { platform: 'meituan', itemName: 'noodle', category: 'staple', displaySpec: '1000g', specWeightG: 1000, price: 7.1, dealTag: 'regular', sourceTitle: 'staple zone', sourceLink: 'https://example.com/grocery/meituan/noodle' },
+        { platform: 'pupu', itemName: 'greens', category: 'vegetable', displaySpec: '500g', specWeightG: 500, price: 2.99, dealTag: 'limited', sourceTitle: 'today fresh', sourceLink: 'https://example.com/grocery/pupu/greens' },
+        { platform: 'duoduo', itemName: 'greens', category: 'vegetable', displaySpec: '500g', specWeightG: 500, price: 3.49, dealTag: 'regular', sourceTitle: 'today fresh', sourceLink: 'https://example.com/grocery/dd/greens' },
       ].map((item) => ({ ...item, capturedAt: nowIso(0) }))
       await insertGroceryFeeds(feedSeed)
     }
@@ -960,12 +1186,12 @@ export function createDataRepository({
       await upsertGroceryPreference('u-demo-001', {
         budgetPerMeal: 25,
         familySize: 3,
-        dietaryNotes: '少油少盐，偏家常菜',
+        dietaryNotes: 'Less oil and salt; prefers home-style meals.',
       })
       await upsertGroceryPreference('u-lite-002', {
         budgetPerMeal: 18,
         familySize: 2,
-        dietaryNotes: '快手菜优先',
+        dietaryNotes: 'Quick meals preferred.',
       })
     }
   }
@@ -982,12 +1208,23 @@ export function createDataRepository({
   async function insertUser(user) {
     const p = await ensurePool()
     const enabledModules = normalizeModuleKeys(user.enabledModules)
+    const tenantId = resolveTenantId(user.tenantId)
+    await ensureTenantExists({
+      tenantId,
+      tenantCode: user.tenantCode || tenantId,
+      tenantName: user.tenantName || `${user.name || user.id} Tenant`,
+      tenantType: user.tenantType || (user.role === 'admin' ? 'enterprise' : 'personal'),
+      status: user.tenantStatus || 'active',
+      isolationLevel: user.isolationLevel || 'logical',
+      ownerUserId: user.id,
+    })
     await p.query(
       `INSERT INTO users
-      (id, name, contact, password_salt, password_hash, password_algo, enabled_modules_json, role, token_state, token_version)
-      VALUES (?, ?, ?, ?, ?, ?, CAST(? AS JSON), ?, ?, ?)`,
+      (id, tenant_id, name, contact, password_salt, password_hash, password_algo, enabled_modules_json, role, token_state, token_version)
+      VALUES (?, ?, ?, ?, ?, ?, ?, CAST(? AS JSON), ?, ?, ?)`,
       [
         user.id,
+        tenantId,
         user.name,
         user.contact,
         user.passwordSalt,
@@ -1011,10 +1248,11 @@ export function createDataRepository({
         const normalizedModuleKey = normalizeModuleKey(task.moduleKey)
         await conn.query(
           `INSERT INTO tasks
-          (task_id, owner_id, module_key, scenario, input_text, attachments_json, status, summary, report_url, report_file, report_format, error_message, created_at, updated_at)
-          VALUES (?, ?, ?, ?, ?, CAST(? AS JSON), ?, ?, ?, ?, ?, ?, ?, ?)`,
+          (task_id, tenant_id, owner_id, module_key, scenario, input_text, attachments_json, status, summary, report_url, report_file, report_format, error_message, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, CAST(? AS JSON), ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             task.taskId,
+            resolveTenantId(task.tenantId),
             task.ownerId,
             normalizedModuleKey,
             task.scenario,
@@ -1046,6 +1284,23 @@ export function createDataRepository({
     return rows.length ? mapUser(rows[0]) : null
   }
 
+  async function findUserByAccount(account) {
+    const normalized = String(account ?? '').trim().toLowerCase()
+    if (!normalized) {
+      return null
+    }
+    const p = await ensurePool()
+    const [rows] = await p.query(
+      `SELECT * FROM users
+       WHERE LOWER(contact) = ?
+          OR LOWER(COALESCE(username, '')) = ?
+          OR id = ?
+       LIMIT 1`,
+      [normalized, normalized, normalized],
+    )
+    return rows.length ? mapUserRow(rows[0]) : null
+  }
+
   async function findUserById(id) {
     const p = await ensurePool()
     const [rows] = await p.query('SELECT * FROM users WHERE id = ? LIMIT 1', [id])
@@ -1070,48 +1325,55 @@ export function createDataRepository({
     return rows.length ? Number(rows[0].token_version ?? 0) : 0
   }
 
-  async function listTasksByUserAndModule(ownerId, moduleKey, limit = 12) {
+  async function listTasksByUserAndModule(ownerId, moduleKey, limit = 12, tenantId = '') {
     const variants = getModuleKeyVariants(moduleKey)
     const placeholders = variants.map(() => '?').join(', ')
     const p = await ensurePool()
+    const safeTenantId = resolveTenantId(tenantId, '')
     const [rows] = await p.query(
-      `SELECT * FROM tasks WHERE owner_id = ? AND module_key IN (${placeholders})
+      `SELECT * FROM tasks WHERE owner_id = ?${safeTenantId ? ' AND tenant_id = ?' : ''} AND module_key IN (${placeholders})
        ORDER BY updated_at DESC LIMIT ?`,
-      [ownerId, ...variants, limit],
+      safeTenantId ? [ownerId, safeTenantId, ...variants, limit] : [ownerId, ...variants, limit],
     )
     return rows.map(mapTask)
   }
 
-  async function listRecentTasksForUser(ownerId, enabledModules, limit = 8) {
+  async function listRecentTasksForUser(ownerId, enabledModules, limit = 8, tenantId = '') {
     if (!enabledModules.length) return []
     const modules = [...new Set(enabledModules.flatMap((item) => getModuleKeyVariants(item)))]
     const placeholders = modules.map(() => '?').join(', ')
     const p = await ensurePool()
+    const safeTenantId = resolveTenantId(tenantId, '')
     const [rows] = await p.query(
       `SELECT * FROM tasks
-       WHERE owner_id = ? AND module_key IN (${placeholders})
+       WHERE owner_id = ?${safeTenantId ? ' AND tenant_id = ?' : ''} AND module_key IN (${placeholders})
        ORDER BY updated_at DESC LIMIT ?`,
-      [ownerId, ...modules, limit],
+      safeTenantId ? [ownerId, safeTenantId, ...modules, limit] : [ownerId, ...modules, limit],
     )
     return rows.map(mapTask)
   }
 
-  async function findTaskByIdForUser(ownerId, moduleKey, taskId) {
+  async function findTaskByIdForUser(ownerId, moduleKey, taskId, tenantId = '') {
     const variants = getModuleKeyVariants(moduleKey)
     const placeholders = variants.map(() => '?').join(', ')
     const p = await ensurePool()
+    const safeTenantId = resolveTenantId(tenantId, '')
     const [rows] = await p.query(
       `SELECT * FROM tasks
-       WHERE owner_id = ? AND module_key IN (${placeholders}) AND task_id = ?
+       WHERE owner_id = ?${safeTenantId ? ' AND tenant_id = ?' : ''} AND module_key IN (${placeholders}) AND task_id = ?
        LIMIT 1`,
-      [ownerId, ...variants, taskId],
+      safeTenantId ? [ownerId, safeTenantId, ...variants, taskId] : [ownerId, ...variants, taskId],
     )
     return rows.length ? mapTask(rows[0]) : null
   }
 
-  async function findTaskById(taskId) {
+  async function findTaskById(taskId, tenantId = '') {
     const p = await ensurePool()
-    const [rows] = await p.query('SELECT * FROM tasks WHERE task_id = ? LIMIT 1', [taskId])
+    const safeTenantId = resolveTenantId(tenantId, '')
+    const [rows] = await p.query(
+      `SELECT * FROM tasks WHERE task_id = ?${safeTenantId ? ' AND tenant_id = ?' : ''} LIMIT 1`,
+      safeTenantId ? [taskId, safeTenantId] : [taskId],
+    )
     return rows.length ? mapTask(rows[0]) : null
   }
 
@@ -1191,13 +1453,13 @@ export function createDataRepository({
         `UPDATE tasks
          SET status = 'running', summary = ?, updated_at = ?
          WHERE task_id = ?`,
-        [`任务正在执行：${row.scenario}`, now, row.task_id],
+        [`浠诲姟姝ｅ湪鎵ц锛?{row.scenario}`, now, row.task_id],
       )
       await conn.commit()
       return {
         ...mapTask(row),
         status: 'running',
-        summary: `任务正在执行：${row.scenario}`,
+        summary: `浠诲姟姝ｅ湪鎵ц锛?{row.scenario}`,
         updatedAt: now.toISOString(),
       }
     } catch (error) {
@@ -1213,16 +1475,20 @@ export function createDataRepository({
     await p.query(
       `UPDATE tasks
        SET status = 'queued',
-           summary = '任务已恢复到排队状态，等待重新执行。',
+           summary = 'Task recovered to queue and waiting to run again.',
            updated_at = ?
        WHERE status = 'running'`,
       [new Date()],
     )
   }
 
-  async function listTasksByStatus(status, limit = 1000) {
+  async function listTasksByStatus(status, limit = 1000, tenantId = '') {
     const p = await ensurePool()
-    const [rows] = await p.query('SELECT * FROM tasks WHERE status = ? ORDER BY updated_at DESC LIMIT ?', [status, limit])
+    const safeTenantId = resolveTenantId(tenantId, '')
+    const [rows] = await p.query(
+      `SELECT * FROM tasks WHERE status = ?${safeTenantId ? ' AND tenant_id = ?' : ''} ORDER BY updated_at DESC LIMIT ?`,
+      safeTenantId ? [status, safeTenantId, limit] : [status, limit],
+    )
     return rows.map(mapTask)
   }
 
@@ -2002,55 +2268,85 @@ export function createDataRepository({
     }
   }
 
-  // ---- 管理员专属查询方法 ----
+  // ---- 绠＄悊鍛樹笓灞炴煡璇㈡柟娉?----
 
-  async function listUsers(limit = 100, offset = 0, search = '') {
+  async function listUsers(limit = 100, offset = 0, search = '', tenantId = '') {
     const p = await ensurePool()
+    const safeTenantId = resolveTenantId(tenantId, '')
     if (search) {
       const like = `%${search}%`
       const [rows] = await p.query(
-        'SELECT * FROM users WHERE (name LIKE ? OR contact LIKE ?) ORDER BY created_at DESC LIMIT ? OFFSET ?',
-        [like, like, limit, offset],
+        `SELECT * FROM users WHERE ${safeTenantId ? 'tenant_id = ? AND ' : ''}(name LIKE ? OR contact LIKE ?) ORDER BY created_at DESC LIMIT ? OFFSET ?`,
+        safeTenantId ? [safeTenantId, like, like, limit, offset] : [like, like, limit, offset],
       )
       return rows.map(mapUserRow)
     }
     const [rows] = await p.query(
-      'SELECT * FROM users ORDER BY created_at DESC LIMIT ? OFFSET ?',
-      [limit, offset],
+      `SELECT * FROM users ${safeTenantId ? 'WHERE tenant_id = ? ' : ''}ORDER BY created_at DESC LIMIT ? OFFSET ?`,
+      safeTenantId ? [safeTenantId, limit, offset] : [limit, offset],
     )
     return rows.map(mapUserRow)
   }
 
-  async function countUsers(search = '') {
+  async function countUsers(search = '', tenantId = '') {
     const p = await ensurePool()
+    const safeTenantId = resolveTenantId(tenantId, '')
     if (search) {
       const like = `%${search}%`
       const [[row]] = await p.query(
-        'SELECT COUNT(*) AS c FROM users WHERE (name LIKE ? OR contact LIKE ?)',
-        [like, like],
+        `SELECT COUNT(*) AS c FROM users WHERE ${safeTenantId ? 'tenant_id = ? AND ' : ''}(name LIKE ? OR contact LIKE ?)`,
+        safeTenantId ? [safeTenantId, like, like] : [like, like],
       )
       return Number(row.c)
     }
-    const [[row]] = await p.query('SELECT COUNT(*) AS c FROM users')
+    const [[row]] = await p.query(
+      `SELECT COUNT(*) AS c FROM users ${safeTenantId ? 'WHERE tenant_id = ?' : ''}`,
+      safeTenantId ? [safeTenantId] : [],
+    )
     return Number(row.c)
   }
 
-  async function updateUserEnabledModules(userId, modules) {
+  async function updateUserEnabledModules(userId, modules, tenantId = '') {
     const p = await ensurePool()
+    const safeTenantId = resolveTenantId(tenantId, '')
     await p.query(
-      'UPDATE users SET enabled_modules_json = CAST(? AS JSON), updated_at = CURRENT_TIMESTAMP(3) WHERE id = ?',
-      [toJson(modules), userId],
+      `UPDATE users
+       SET enabled_modules_json = CAST(? AS JSON), updated_at = CURRENT_TIMESTAMP(3)
+       WHERE id = ?${safeTenantId ? ' AND tenant_id = ?' : ''}`,
+      safeTenantId ? [toJson(modules), userId, safeTenantId] : [toJson(modules), userId],
     )
+  }
+
+  function buildTaskWhereClause(opts = {}) {
+    const { status, moduleKey, keyword, tenantId } = opts
+    const conditions = []
+    const params = []
+    const safeTenantId = resolveTenantId(tenantId, '')
+    if (safeTenantId) {
+      conditions.push('tenant_id = ?')
+      params.push(safeTenantId)
+    }
+    if (status) {
+      conditions.push('status = ?')
+      params.push(status)
+    }
+    if (moduleKey) {
+      conditions.push('module_key = ?')
+      params.push(moduleKey)
+    }
+    if (keyword) {
+      conditions.push('(task_id LIKE ? OR owner_id LIKE ? OR scenario LIKE ? OR input_text LIKE ? OR summary LIKE ?)')
+      const like = `%${keyword}%`
+      params.push(like, like, like, like, like)
+    }
+    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
+    return { where, params }
   }
 
   async function listAllTasks(opts = {}) {
     const p = await ensurePool()
-    const { status, moduleKey, limit = 50, offset = 0 } = opts
-    const conditions = []
-    const params = []
-    if (status) { conditions.push('status = ?'); params.push(status) }
-    if (moduleKey) { conditions.push('module_key = ?'); params.push(moduleKey) }
-    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
+    const { limit = 50, offset = 0 } = opts
+    const { where, params } = buildTaskWhereClause(opts)
     const [rows] = await p.query(
       `SELECT * FROM tasks ${where} ORDER BY updated_at DESC LIMIT ? OFFSET ?`,
       [...params, limit, offset],
@@ -2060,36 +2356,54 @@ export function createDataRepository({
 
   async function countAllTasks(opts = {}) {
     const p = await ensurePool()
-    const { status, moduleKey } = opts
-    const conditions = []
-    const params = []
-    if (status) { conditions.push('status = ?'); params.push(status) }
-    if (moduleKey) { conditions.push('module_key = ?'); params.push(moduleKey) }
-    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
+    const { where, params } = buildTaskWhereClause(opts)
     const [[row]] = await p.query(`SELECT COUNT(*) AS c FROM tasks ${where}`, params)
     return Number(row.c)
   }
 
-  async function getModuleStats() {
+  async function countTaskStatusSummary(opts = {}) {
     const p = await ensurePool()
+    const { where, params } = buildTaskWhereClause({
+      tenantId: opts.tenantId,
+      moduleKey: opts.moduleKey,
+      keyword: opts.keyword,
+    })
+    const [rows] = await p.query(
+      `SELECT status, COUNT(*) AS cnt FROM tasks ${where} GROUP BY status`,
+      params,
+    )
+    return rows.map((row) => ({
+      status: row.status,
+      count: Number(row.cnt ?? 0),
+    }))
+  }
+
+  async function getModuleStats(tenantId = '') {
+    const p = await ensurePool()
+    const safeTenantId = resolveTenantId(tenantId, '')
+    const where = safeTenantId ? 'WHERE tenant_id = ?' : ''
     const [rows] = await p.query(`
       SELECT module_key, status, COUNT(*) AS cnt
       FROM tasks
+      ${where}
       GROUP BY module_key, status
-    `)
+    `, safeTenantId ? [safeTenantId] : [])
     return rows
   }
 
-  async function listUsersByModule(moduleKey) {
+  async function listUsersByModule(moduleKey, tenantId = '') {
     const p = await ensurePool()
+    const safeTenantId = resolveTenantId(tenantId, '')
     const [rows] = await p.query(
       `SELECT u.*, MAX(t.updated_at) AS last_task_at, COUNT(t.id) AS task_count
        FROM users u
-       LEFT JOIN tasks t ON t.owner_id = u.id AND t.module_key = ?
-       WHERE JSON_CONTAINS(u.enabled_modules_json, ?)
+       LEFT JOIN tasks t ON t.owner_id = u.id AND t.module_key = ?${safeTenantId ? ' AND t.tenant_id = ?' : ''}
+       WHERE ${safeTenantId ? 'u.tenant_id = ? AND ' : ''}JSON_CONTAINS(u.enabled_modules_json, ?)
        GROUP BY u.id
        ORDER BY last_task_at DESC`,
-      [moduleKey, JSON.stringify(moduleKey)],
+      safeTenantId
+        ? [moduleKey, safeTenantId, safeTenantId, JSON.stringify(moduleKey)]
+        : [moduleKey, JSON.stringify(moduleKey)],
     )
     return rows.map((row) => ({
       ...mapUserRow(row),
@@ -2098,9 +2412,13 @@ export function createDataRepository({
     }))
   }
 
-  async function findModuleSettings(moduleKey) {
+  async function findModuleSettings(moduleKey, tenantId = PLATFORM_TENANT_ID) {
     const p = await ensurePool()
-    const [rows] = await p.query('SELECT * FROM module_settings WHERE module_key = ? LIMIT 1', [moduleKey])
+    const safeTenantId = resolveTenantId(tenantId)
+    const [rows] = await p.query(
+      'SELECT * FROM module_settings WHERE tenant_id = ? AND module_key = ? LIMIT 1',
+      [safeTenantId, moduleKey],
+    )
     if (!rows.length) return null
     const row = rows[0]
     return {
@@ -2112,23 +2430,208 @@ export function createDataRepository({
     }
   }
 
-  async function upsertModuleSettings(moduleKey, config, updatedBy = '') {
+  async function upsertModuleSettings(moduleKey, config, updatedBy = '', tenantId = PLATFORM_TENANT_ID) {
     const p = await ensurePool()
+    const safeTenantId = resolveTenantId(tenantId)
     await p.query(
-      `INSERT INTO module_settings (module_key, config_json, updated_by)
-       VALUES (?, CAST(? AS JSON), ?)
+      `INSERT INTO module_settings (tenant_id, module_key, config_json, updated_by)
+       VALUES (?, ?, CAST(? AS JSON), ?)
        ON DUPLICATE KEY UPDATE
          config_json = VALUES(config_json),
          updated_by = VALUES(updated_by),
          updated_at = CURRENT_TIMESTAMP(3)`,
-      [moduleKey, toJson(config ?? {}), updatedBy || null],
+      [safeTenantId, moduleKey, toJson(config ?? {}), updatedBy || null],
     )
-    return findModuleSettings(moduleKey)
+    return findModuleSettings(moduleKey, safeTenantId)
+  }
+
+  async function upsertFeatureRecord(record) {
+    const p = await ensurePool()
+    const safeTenantId = resolveTenantId(record.tenantId)
+    const payload = {
+      headline: record.payload?.headline ?? '',
+      highlights: Array.isArray(record.payload?.highlights) ? record.payload.highlights : [],
+      finding: record.payload?.finding ?? '',
+      recommendation: record.payload?.recommendation ?? '',
+      details: record.payload?.details ?? {},
+    }
+
+    await p.query(
+      `INSERT INTO module_feature_records
+       (record_id, tenant_id, task_id, owner_id, module_key, feature_key, feature_name, scenario, status, payload_json)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CAST(? AS JSON))
+       ON DUPLICATE KEY UPDATE
+         feature_name = VALUES(feature_name),
+         scenario = VALUES(scenario),
+         status = VALUES(status),
+         payload_json = VALUES(payload_json),
+         updated_at = CURRENT_TIMESTAMP(3)`,
+      [
+        record.recordId,
+        safeTenantId,
+        record.taskId,
+        record.ownerId,
+        record.moduleKey,
+        record.featureKey,
+        record.featureName,
+        record.scenario,
+        record.status,
+        toJson(payload),
+      ],
+    )
+  }
+
+  function buildFeatureRecordWhereClause(opts = {}) {
+    const { moduleKey, featureKey, keyword, status, tenantId } = opts
+    const conditions = []
+    const params = []
+    const safeTenantId = resolveTenantId(tenantId, '')
+    if (safeTenantId) {
+      conditions.push('tenant_id = ?')
+      params.push(safeTenantId)
+    }
+    if (moduleKey) {
+      conditions.push('module_key = ?')
+      params.push(moduleKey)
+    }
+    if (featureKey) {
+      conditions.push('feature_key = ?')
+      params.push(featureKey)
+    }
+    if (status) {
+      conditions.push('status = ?')
+      params.push(status)
+    }
+    if (keyword) {
+      const like = `%${keyword}%`
+      conditions.push('(record_id LIKE ? OR task_id LIKE ? OR scenario LIKE ? OR feature_name LIKE ?)')
+      params.push(like, like, like, like)
+    }
+    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
+    return { where, params }
+  }
+
+  async function listFeatureRecords(opts = {}) {
+    const p = await ensurePool()
+    const { limit = 50, offset = 0 } = opts
+    const { where, params } = buildFeatureRecordWhereClause(opts)
+    const [rows] = await p.query(
+      `SELECT * FROM module_feature_records ${where}
+       ORDER BY updated_at DESC LIMIT ? OFFSET ?`,
+      [...params, limit, offset],
+    )
+    return rows.map(mapFeatureRecordRow)
+  }
+
+  async function countFeatureRecords(opts = {}) {
+    const p = await ensurePool()
+    const { where, params } = buildFeatureRecordWhereClause(opts)
+    const [[row]] = await p.query(`SELECT COUNT(*) AS c FROM module_feature_records ${where}`, params)
+    return Number(row.c)
+  }
+
+  async function countFeatureRecordStatusSummary(opts = {}) {
+    const p = await ensurePool()
+    const { where, params } = buildFeatureRecordWhereClause(opts)
+    const [rows] = await p.query(
+      `SELECT status, COUNT(*) AS cnt
+       FROM module_feature_records ${where}
+       GROUP BY status`,
+      params,
+    )
+    return rows.map((row) => ({
+      status: row.status,
+      count: Number(row.cnt ?? 0),
+    }))
+  }
+
+  async function listCustomModules() {
+    const p = await ensurePool()
+    const [rows] = await p.query(
+      `SELECT * FROM custom_modules ORDER BY updated_at DESC, id DESC`,
+    )
+    return rows.map(mapCustomModuleRow)
+  }
+
+  async function findCustomModule(moduleKey) {
+    const p = await ensurePool()
+    const [rows] = await p.query('SELECT * FROM custom_modules WHERE module_key = ? LIMIT 1', [moduleKey])
+    return rows.length ? mapCustomModuleRow(rows[0]) : null
+  }
+
+  async function upsertCustomModule(payload) {
+    const p = await ensurePool()
+    await p.query(
+      `INSERT INTO custom_modules
+       (module_key, module_name, category, description, icon, status, mobile_supported, execution_rule_json, blueprint_json, source_doc, created_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, CAST(? AS JSON), CAST(? AS JSON), ?, ?)
+       ON DUPLICATE KEY UPDATE
+         module_name = VALUES(module_name),
+         category = VALUES(category),
+         description = VALUES(description),
+         icon = VALUES(icon),
+         status = VALUES(status),
+         mobile_supported = VALUES(mobile_supported),
+         execution_rule_json = VALUES(execution_rule_json),
+         blueprint_json = VALUES(blueprint_json),
+         source_doc = VALUES(source_doc),
+         created_by = VALUES(created_by),
+         updated_at = CURRENT_TIMESTAMP(3)`,
+      [
+        String(payload.moduleKey),
+        String(payload.name),
+        String(payload.category || 'enterprise'),
+        payload.description ? String(payload.description) : null,
+        String(payload.icon || 'Grid'),
+        String(payload.status || 'beta'),
+        payload.mobileSupported === false ? 0 : 1,
+        toJson(payload.executionRule || {}),
+        toJson(payload.blueprint || {}),
+        payload.sourceDoc ? String(payload.sourceDoc) : null,
+        payload.createdBy ? String(payload.createdBy) : null,
+      ],
+    )
+    return findCustomModule(payload.moduleKey)
+  }
+
+  async function appendUserEnabledModule(userId, moduleKey) {
+    const user = await findUserById(userId)
+    if (!user) return null
+    const enabled = new Set(Array.isArray(user.enabledModules) ? user.enabledModules : [])
+    enabled.add(String(moduleKey))
+    await updateUserEnabledModules(userId, [...enabled], user.tenantId)
+    return findUserById(userId)
+  }
+
+  async function listDataDictionary(dictType = '') {
+    const p = await ensurePool()
+    const safeType = String(dictType ?? '').trim()
+    const [rows] = await p.query(
+      `SELECT *
+       FROM data_dictionary
+       WHERE status = 'active'${safeType ? ' AND dict_type = ?' : ''}
+       ORDER BY dict_type ASC, sort_order ASC, id ASC`,
+      safeType ? [safeType] : [],
+    )
+    return rows.map((row) => ({
+      id: Number(row.id),
+      dictType: row.dict_type,
+      dictKey: row.dict_key,
+      dictValue: row.dict_value,
+      dictLabel: row.dict_label,
+      description: row.description ?? '',
+      sortOrder: Number(row.sort_order ?? 0),
+      isSystem: Boolean(row.is_system),
+      status: row.status,
+      createdAt: row.created_at ? toIso(row.created_at) : null,
+      updatedAt: row.updated_at ? toIso(row.updated_at) : null,
+    }))
   }
 
   return {
     ensureInitialized,
     createSeedTasks,
+    findUserByAccount,
     findUserByContact,
     findUserById,
     contactExists,
@@ -2203,10 +2706,20 @@ export function createDataRepository({
     updateUserEnabledModules,
     listAllTasks,
     countAllTasks,
+    countTaskStatusSummary,
     getModuleStats,
     listUsersByModule,
     findModuleSettings,
     upsertModuleSettings,
+    upsertFeatureRecord,
+    listFeatureRecords,
+    countFeatureRecords,
+    countFeatureRecordStatusSummary,
+    listCustomModules,
+    findCustomModule,
+    upsertCustomModule,
+    appendUserEnabledModule,
+    listDataDictionary,
     close,
   }
 }

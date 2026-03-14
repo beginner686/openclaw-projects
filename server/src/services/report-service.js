@@ -2,7 +2,14 @@
 import { writeFile } from 'node:fs/promises'
 import path from 'node:path'
 
-export function createReportService({ paths, getModuleName, getModuleRule, securityService, dataRepository }) {
+export function createReportService({
+  paths,
+  getModuleName,
+  getModuleRule,
+  moduleLogicService,
+  securityService,
+  dataRepository,
+}) {
   function escapeHtml(input = '') {
     return String(input)
       .replace(/&/g, '&amp;')
@@ -32,7 +39,7 @@ export function createReportService({ paths, getModuleName, getModuleRule, secur
     return [...new Set(value.map((item) => String(item).trim()).filter(Boolean).slice(0, 100))]
   }
 
-  async function resolveModuleRule(moduleKey) {
+  async function resolveModuleRule(moduleKey, tenantId = 't-platform') {
     const baseRule = getModuleRule(moduleKey) ?? {
       focusChecks: [],
       riskSignals: [],
@@ -41,7 +48,7 @@ export function createReportService({ paths, getModuleName, getModuleRule, secur
     }
 
     try {
-      const settings = await dataRepository?.findModuleSettings?.(moduleKey)
+      const settings = await dataRepository?.findModuleSettings?.(moduleKey, tenantId)
       const override = settings?.config?.rule
       return {
         focusChecks: normalizeArray(override?.focusChecks, baseRule.focusChecks),
@@ -61,7 +68,7 @@ export function createReportService({ paths, getModuleName, getModuleRule, secur
 
   async function buildTaskInsights(task) {
     const moduleName = getModuleName(task.moduleKey)
-    const moduleRule = await resolveModuleRule(task.moduleKey)
+    const moduleRule = await resolveModuleRule(task.moduleKey, task.tenantId)
     const keywords = extractKeywords(task.inputText)
     const textLength = String(task.inputText ?? '').length
     const attachmentCount = Array.isArray(task.attachments) ? task.attachments.length : 0
@@ -70,15 +77,23 @@ export function createReportService({ paths, getModuleName, getModuleRule, secur
     )
     const confidence = Math.min(99, 64 + Math.floor(textLength / 20) + attachmentCount * 3 + moduleRule.focusChecks.length)
     const priority = hasRiskSignal ? 'high' : textLength > 120 ? 'medium' : 'normal'
+    const moduleResult = moduleLogicService?.analyzeTask?.(task) ?? null
 
     return {
       moduleName,
       moduleRule,
       keywords,
-      priority,
-      confidence,
-      nextActions: [...moduleRule.nextActions, 'Sync this result to customer center and continue iterative optimization.'].slice(0, 4),
-      summary: `${moduleName} scenario \"${task.scenario}\" completed with ${keywords.length} keyword(s), priority ${priority}.`,
+      priority: moduleResult?.priority ?? priority,
+      confidence: Math.max(confidence, moduleResult?.score ?? 0),
+      nextActions: [
+        ...(moduleResult?.recommendations ?? []),
+        ...moduleRule.nextActions,
+        'Sync this result to customer center and continue iterative optimization.',
+      ].slice(0, 6),
+      summary:
+        moduleResult?.summary ??
+        `${moduleName} scenario \"${task.scenario}\" completed with ${keywords.length} keyword(s), priority ${priority}.`,
+      moduleResult,
     }
   }
 
@@ -94,6 +109,21 @@ export function createReportService({ paths, getModuleName, getModuleRule, secur
       task.attachments.length > 0
         ? task.attachments.map((item) => `<li>${escapeHtml(item)}</li>`).join('')
         : '<li>No attachments.</li>'
+    const metricRows =
+      insight.moduleResult?.metricCards?.length > 0
+        ? insight.moduleResult.metricCards
+            .map((item) => {
+              const unit = item.unit ? ` ${escapeHtml(item.unit)}` : ''
+              return `<tr><td>${escapeHtml(item.label ?? item.key)}</td><td>${escapeHtml(item.value)}</td><td>${unit}</td></tr>`
+            })
+            .join('')
+        : '<tr><td colspan="3">No module metrics generated.</td></tr>'
+    const findingsHtml =
+      insight.moduleResult?.findings?.length > 0
+        ? insight.moduleResult.findings.map((item) => `<li>${escapeHtml(item)}</li>`).join('')
+        : '<li>No explicit findings.</li>'
+    const riskLevel = insight.moduleResult?.riskLevel ?? 'unknown'
+    const score = insight.moduleResult?.score ?? '-'
 
     return `<!doctype html>
 <html lang="zh-CN">
@@ -128,6 +158,19 @@ export function createReportService({ paths, getModuleName, getModuleRule, secur
     <section>
       <h2>Summary</h2>
       <p>${escapeHtml(insight.summary)}</p>
+    </section>
+
+    <section>
+      <h2>Module Assessment</h2>
+      <p><span class="badge">Risk Level</span>${escapeHtml(riskLevel)} &nbsp; <span class="badge">Score</span>${escapeHtml(score)}</p>
+      <table style="width:100%;border-collapse:collapse">
+        <thead>
+          <tr><th style="text-align:left;border-bottom:1px solid #dbe4f0;padding:6px 0">Metric</th><th style="text-align:left;border-bottom:1px solid #dbe4f0;padding:6px 0">Value</th><th style="text-align:left;border-bottom:1px solid #dbe4f0;padding:6px 0">Unit</th></tr>
+        </thead>
+        <tbody>${metricRows}</tbody>
+      </table>
+      <h3>Findings</h3>
+      <ul>${findingsHtml}</ul>
     </section>
 
     <section>

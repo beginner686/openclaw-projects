@@ -10,6 +10,7 @@ import AdminDashboard from '@/views/admin/AdminDashboard.vue'
 import AdminUsersView from '@/views/admin/AdminUsersView.vue'
 import AdminTasksView from '@/views/admin/AdminTasksView.vue'
 import AdminModulesView from '@/views/admin/AdminModulesView.vue'
+import AdminModuleFactoryView from '@/views/admin/AdminModuleFactoryView.vue'
 import ModuleOverview from '@/views/admin/module/ModuleOverview.vue'
 import ModuleTasks from '@/views/admin/module/ModuleTasks.vue'
 import ModuleUsers from '@/views/admin/module/ModuleUsers.vue'
@@ -100,6 +101,12 @@ export const router = createRouter({
           path: 'modules',
           name: 'admin-modules',
           component: AdminModulesView,
+          meta: { requiresAuth: true, requiresAdmin: true },
+        },
+        {
+          path: 'module-factory',
+          name: 'admin-module-factory',
+          component: AdminModuleFactoryView,
           meta: { requiresAuth: true, requiresAdmin: true },
         },
         {

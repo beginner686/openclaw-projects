@@ -2,6 +2,7 @@
 import { onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { fetchAdminUsers, updateUserModules } from '@/api/admin'
+import { fetchEnabledModules } from '@/api/modules'
 import type { AdminUser } from '@/api/admin'
 import { moduleCatalog } from '@/config/modules'
 
@@ -15,6 +16,7 @@ const users = ref<AdminUser[]>([])
 const total = ref(0)
 const page = ref(1)
 const search = ref('')
+const allModules = ref<Array<{ key: string; name: string }>>([])
 
 const drawerVisible = ref(false)
 const selectedUser = ref<AdminUser | null>(null)
@@ -29,6 +31,15 @@ async function loadUsers() {
     total.value = res.total
   } finally {
     loading.value = false
+  }
+}
+
+async function loadAllModules() {
+  try {
+    const rows = await fetchEnabledModules()
+    allModules.value = rows.map((item) => ({ key: item.moduleKey, name: item.name }))
+  } catch {
+    // Keep empty list if fetch fails.
   }
 }
 
@@ -54,7 +65,10 @@ async function saveModules() {
   }
 }
 
-onMounted(loadUsers)
+onMounted(async () => {
+  await loadAllModules()
+  await loadUsers()
+})
 </script>
 
 <template>
@@ -117,7 +131,7 @@ onMounted(loadUsers)
     >
       <div class="drawer-body">
         <el-checkbox-group v-model="editingModules" class="module-checkboxes">
-          <el-checkbox v-for="m in ALL_MODULES" :key="m.key" :value="m.key" class="module-checkbox">
+          <el-checkbox v-for="m in allModules" :key="m.key" :value="m.key" class="module-checkbox">
             {{ m.name }}
           </el-checkbox>
         </el-checkbox-group>

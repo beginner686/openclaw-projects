@@ -4,29 +4,18 @@ import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import type { UploadProps, UploadUserFile } from 'element-plus'
 import { moduleMap } from '@/config/modules'
-import { fetchModuleHistory, fetchModuleTask, runModuleTask } from '@/api/modules'
+import { fetchEnabledModules, fetchModuleHistory, fetchModuleSchema, fetchModuleTask, runModuleTask } from '@/api/modules'
 import AntiFraudGuardianView from '@/views/AntiFraudGuardianView.vue'
 import SmartGroceryView from '@/views/SmartGroceryView.vue'
 import MediaWorkbenchView from '@/views/MediaWorkbenchView.vue'
 import { useAuthStore } from '@/stores/auth'
-import type { ModuleTaskResult } from '@/types/domain'
+import type { ModuleMeta, ModuleTaskResult, ModuleTaskSchema } from '@/types/domain'
 
 const route = useRoute()
 const auth = useAuthStore()
 
-const scenarioList = [
-  '标准流程',
-  '加急执行',
-  '高安全模式',
-  '批量任务',
-]
-
-const MAX_SCENARIO_LENGTH = 60
-const MAX_INPUT_LENGTH = 6000
-const MAX_ATTACHMENTS = 10
-
 const taskForm = reactive({
-  scenario: '标准流程',
+  scenario: '',
   inputText: '',
   attachments: [] as string[],
 })
@@ -34,20 +23,41 @@ const taskForm = reactive({
 const uploadList = ref<UploadUserFile[]>([])
 const submitting = ref(false)
 const loadingHistory = ref(false)
+const loadingSchema = ref(false)
 const latestResult = ref<ModuleTaskResult | null>(null)
 const historyList = ref<ModuleTaskResult[]>([])
+const moduleSchema = ref<ModuleTaskSchema | null>(null)
 const errorText = ref('')
 const latestTaskId = ref('')
 const pollTimer = ref<number | null>(null)
 const pollAttempts = ref(0)
+const dynamicModuleMap = ref<Map<string, ModuleMeta>>(new Map(moduleMap))
 
 const moduleKey = computed(() => String(route.params.moduleKey ?? ''))
-const moduleMeta = computed(() => moduleMap.get(moduleKey.value))
 const hasAccess = computed(() => auth.user?.enabledModules.includes(moduleKey.value) ?? false)
 const isAntiFraudModule = computed(() => moduleKey.value === 'anti-fraud-guardian')
 const isSmartGroceryModule = computed(() => moduleKey.value === 'smart-grocery-supermarket')
-const isMediaModule = computed(() => moduleKey.value === 'content-generation-publisher')
-const isDedicatedModule = computed(() => isAntiFraudModule.value || isSmartGroceryModule.value || isMediaModule.value)
+const isDedicatedModule = computed(() => isAntiFraudModule.value || isSmartGroceryModule.value)
+const moduleMeta = computed(() => {
+  const dynamicMeta = dynamicModuleMap.value.get(moduleKey.value)
+  if (dynamicMeta) return dynamicMeta
+  const staticMeta = moduleMap.get(moduleKey.value)
+  if (staticMeta) return staticMeta
+  if (!hasAccess.value) return null
+  return {
+    moduleKey: moduleKey.value,
+    name: moduleKey.value,
+    category: 'enterprise',
+    description: '动态生成模块',
+    icon: 'Grid',
+    status: 'beta',
+    mobileSupported: true,
+  } as ModuleMeta
+})
+const scenarioList = computed(() => moduleSchema.value?.scenarios ?? ['standard'])
+const inputPlaceholder = computed(() =>
+  moduleSchema.value?.samplePrompt || '请输入任务内容、规则或说明。',
+)
 
 const onUploadChange: UploadProps['onChange'] = (file, files) => {
   uploadList.value = files.slice(-5)
@@ -79,6 +89,39 @@ async function loadHistory() {
     errorText.value = error instanceof Error ? error.message : '历史记录加载失败。'
   } finally {
     loadingHistory.value = false
+  }
+}
+
+async function loadDynamicModuleMeta() {
+  try {
+    const modules = await fetchEnabledModules()
+    const merged = new Map<string, ModuleMeta>(moduleMap)
+    for (const item of modules) {
+      merged.set(item.moduleKey, item)
+    }
+    dynamicModuleMap.value = merged
+  } catch {
+    // Ignore metadata fetch failures and fallback to static modules.
+  }
+}
+
+async function loadModuleSchema() {
+  if (!moduleMeta.value || !hasAccess.value || isDedicatedModule.value) {
+    moduleSchema.value = null
+    return
+  }
+
+  loadingSchema.value = true
+  try {
+    moduleSchema.value = await fetchModuleSchema(moduleKey.value)
+    if (!scenarioList.value.includes(taskForm.scenario)) {
+      taskForm.scenario = scenarioList.value[0] || 'standard'
+    }
+  } catch (error) {
+    moduleSchema.value = null
+    errorText.value = error instanceof Error ? error.message : '模块配置加载失败。'
+  } finally {
+    loadingSchema.value = false
   }
 }
 
@@ -115,7 +158,7 @@ function scheduleNextPoll() {
 }
 
 async function pollLatestTask() {
-  if (!latestTaskId.value || !moduleMeta.value || !hasAccess.value || isDedicatedModule.value) {
+  if (!latestTaskId.value || !moduleMeta.value || !hasAccess.value) {
     stopPolling()
     return
   }
@@ -161,23 +204,8 @@ async function submitTask() {
     return
   }
 
-  const scenario = taskForm.scenario.trim()
-  const inputText = taskForm.inputText.trim()
-
-  if (!scenario || !inputText) {
+  if (!taskForm.inputText.trim()) {
     ElMessage.warning('请填写任务输入内容。')
-    return
-  }
-  if (scenario.length > MAX_SCENARIO_LENGTH) {
-    ElMessage.warning(`任务场景长度不能超过 ${MAX_SCENARIO_LENGTH} 字符。`)
-    return
-  }
-  if (inputText.length > MAX_INPUT_LENGTH) {
-    ElMessage.warning(`任务输入不能超过 ${MAX_INPUT_LENGTH} 字符。`)
-    return
-  }
-  if (taskForm.attachments.length > MAX_ATTACHMENTS) {
-    ElMessage.warning(`附件数量不能超过 ${MAX_ATTACHMENTS} 个。`)
     return
   }
 
@@ -187,8 +215,8 @@ async function submitTask() {
   try {
     const result = await runModuleTask({
       moduleKey: moduleKey.value,
-      scenario,
-      inputText,
+      scenario: taskForm.scenario || scenarioList.value[0] || 'standard',
+      inputText: taskForm.inputText,
       attachments: taskForm.attachments,
     })
 
@@ -214,16 +242,22 @@ async function submitTask() {
 
 watch(moduleKey, () => {
   stopPolling()
+  moduleSchema.value = null
+  taskForm.scenario = ''
   taskForm.inputText = ''
   taskForm.attachments = []
   uploadList.value = []
   latestResult.value = null
   latestTaskId.value = ''
   pollAttempts.value = 0
+  void loadDynamicModuleMeta()
+  void loadModuleSchema()
   void loadHistory()
 })
 
 onMounted(() => {
+  void loadDynamicModuleMeta()
+  void loadModuleSchema()
   void loadHistory()
 })
 
@@ -255,7 +289,6 @@ onUnmounted(() => {
     />
 
     <AntiFraudGuardianView v-if="moduleMeta && hasAccess && isAntiFraudModule" />
-
     <SmartGroceryView v-if="moduleMeta && hasAccess && isSmartGroceryModule" />
 
     <MediaWorkbenchView v-if="moduleMeta && hasAccess && isMediaModule" />
@@ -263,6 +296,18 @@ onUnmounted(() => {
     <div class="module-grid" v-if="moduleMeta && hasAccess && !isDedicatedModule">
       <section class="card-panel task-form-panel">
         <h3>任务配置</h3>
+        <el-skeleton v-if="loadingSchema" :rows="3" animated />
+        <div v-else-if="moduleSchema" class="schema-tip">
+          <p class="muted">输入提示：</p>
+          <ul>
+            <li v-for="hint in moduleSchema.inputHints" :key="hint">{{ hint }}</li>
+          </ul>
+          <div class="metric-tags">
+            <el-tag v-for="metric in moduleSchema.metrics" :key="metric.key" type="info">
+              {{ metric.label }}{{ metric.unit ? ` (${metric.unit})` : '' }}
+            </el-tag>
+          </div>
+        </div>
         <el-form label-position="top">
           <el-form-item label="执行场景">
             <el-select v-model="taskForm.scenario" placeholder="请选择执行场景">
@@ -275,7 +320,7 @@ onUnmounted(() => {
               v-model="taskForm.inputText"
               type="textarea"
               :rows="6"
-              placeholder="请输入任务内容、规则或说明，例如：请对本周营销数据做复盘并输出 PDF 报告。"
+              :placeholder="inputPlaceholder"
             />
           </el-form-item>
 
@@ -376,6 +421,31 @@ onUnmounted(() => {
 .result-panel h3,
 .history-panel h3 {
   margin: 0 0 12px;
+}
+
+.schema-tip {
+  margin-bottom: 14px;
+  padding: 10px;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  background: #f8fafe;
+}
+
+.schema-tip ul {
+  margin: 6px 0 0;
+  padding-left: 18px;
+}
+
+.schema-tip li {
+  margin-bottom: 4px;
+  color: var(--text-muted);
+}
+
+.metric-tags {
+  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
 .right-column {

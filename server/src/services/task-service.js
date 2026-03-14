@@ -1,19 +1,15 @@
 ﻿import { randomBytes } from 'node:crypto'
+import { getMatchedFeatureMenus } from '../config/module-blueprints.js'
 
 export function createTaskService({
   env,
   moduleCatalog,
   getModuleName,
   getModuleRule,
-  normalizeModuleKey,
+  moduleLogicService,
   dataRepository,
   reportService,
 }) {
-  const MAX_SCENARIO_LENGTH = 60
-  const MAX_INPUT_LENGTH = 6000
-  const MAX_ATTACHMENTS = 10
-  const MAX_ATTACHMENT_NAME_LENGTH = 200
-
   let workerTimer = null
   let cleanupTimer = null
 
@@ -44,6 +40,19 @@ export function createTaskService({
     return { ok: false, status, code, message }
   }
 
+  function hashCode(text) {
+    const source = String(text ?? '')
+    let value = 0
+    for (let i = 0; i < source.length; i += 1) value = (value * 31 + source.charCodeAt(i)) >>> 0
+    return value
+  }
+
+  function hashInRange(seed, min, max) {
+    const lo = Math.min(min, max)
+    const hi = Math.max(min, max)
+    return lo + (hashCode(seed) % (hi - lo + 1))
+  }
+
   function clampNumber(value, min, max, fallback) {
     const parsed = Number(value)
     if (!Number.isFinite(parsed)) return fallback
@@ -65,19 +74,23 @@ export function createTaskService({
   }
 
   function assertModuleAccess(user, moduleKey) {
-    const normalizedModuleKey = normalizeModuleKey(moduleKey)
-    if (!getModuleExists(normalizedModuleKey)) {
-      return fail(404, 'MODULE_NOT_FOUND', '业务模块不存在。')
+    if (!getModuleExists(moduleKey)) {
+      return fail(404, 'MODULE_NOT_FOUND', 'Module not found.')
     }
-    if (!user.enabledModules.includes(normalizedModuleKey)) {
-      return fail(403, 'MODULE_FORBIDDEN', '当前账号未开通该业务。')
+    if (!user.enabledModules.includes(moduleKey)) {
+      return fail(403, 'MODULE_FORBIDDEN', 'Current account has no access to this module.')
     }
-    return { ok: true, moduleKey: normalizedModuleKey }
+    return { ok: true }
   }
 
-  async function getModuleRuntime(moduleKey) {
+  function buildRuntimeCacheKey(moduleKey, tenantId = 't-platform') {
+    return `${tenantId}:${moduleKey}`
+  }
+
+  async function getModuleRuntime(moduleKey, tenantId = 't-platform') {
     const now = Date.now()
-    const cached = moduleRuntimeCache.get(moduleKey)
+    const cacheKey = buildRuntimeCacheKey(moduleKey, tenantId)
+    const cached = moduleRuntimeCache.get(cacheKey)
     if (cached && cached.expiresAt > now) {
       return cached.value
     }
@@ -96,7 +109,7 @@ export function createTaskService({
 
     let settingsConfig = null
     try {
-      const settings = await dataRepository.findModuleSettings(moduleKey)
+      const settings = await dataRepository.findModuleSettings(moduleKey, tenantId)
       settingsConfig = settings?.config ?? null
     } catch (error) {
       console.warn('[task-service] failed to load module settings:', moduleKey, error?.message ?? error)
@@ -140,12 +153,12 @@ export function createTaskService({
     }
 
     const runtime = { execution, visibility, rule }
-    moduleRuntimeCache.set(moduleKey, { value: runtime, expiresAt: now + 5000 })
+    moduleRuntimeCache.set(cacheKey, { value: runtime, expiresAt: now + 5000 })
     return runtime
   }
 
   async function toClientTask(task, viewerId) {
-    const runtime = await getModuleRuntime(task.moduleKey)
+    const runtime = await getModuleRuntime(task.moduleKey, task.tenantId)
     const reportUrl =
       task.reportUrl && runtime.visibility.allowCustomerView && runtime.visibility.allowExport
         ? reportService.buildAuthorizedReportUrl(task, viewerId)
@@ -174,14 +187,96 @@ export function createTaskService({
     return 1600 + textFactor + fileFactor
   }
 
+  function buildFeatureDetail(task, feature, moduleResult, featureIndex) {
+    const metricCards = Array.isArray(moduleResult?.metricCards)
+      ? moduleResult.metricCards.slice(0, 4).map((item) => ({
+        key: String(item?.key ?? ''),
+        label: String(item?.label ?? ''),
+        unit: String(item?.unit ?? ''),
+        value: Number.isFinite(Number(item?.value)) ? Number(item.value) : 0,
+      }))
+      : []
+
+    const findings = normalizeArray(moduleResult?.findings)
+    const recommendations = normalizeArray(moduleResult?.recommendations)
+    const highlights = findings.slice(0, 3)
+    if (!highlights.length && task.summary) highlights.push(String(task.summary))
+    if (!highlights.length) highlights.push(`已完成 ${feature.name} 数据处理。`)
+
+    const score = Number.isFinite(Number(moduleResult?.score))
+      ? Math.max(0, Math.min(100, Math.round(Number(moduleResult.score))))
+      : hashInRange(`${task.taskId}|${feature.key}|score`, 58, 96)
+
+    return {
+      headline: `${feature.name} · ${task.scenario}`,
+      highlights,
+      finding: findings[0] ?? String(task.summary ?? `${feature.name}已完成执行。`),
+      recommendation: recommendations[0] ?? '建议继续跟踪该子功能核心指标并定期复盘规则。',
+      details: {
+        taskId: task.taskId,
+        moduleKey: task.moduleKey,
+        featureKey: feature.key,
+        featureIndex,
+        scenario: task.scenario,
+        status: task.status,
+        score,
+        riskLevel: String(moduleResult?.riskLevel ?? 'low'),
+        priority: String(moduleResult?.priority ?? 'medium'),
+        confidence: hashInRange(`${task.taskId}|${feature.key}|confidence`, 72, 98),
+        tags: normalizeArray(moduleResult?.tags).slice(0, 8),
+        metricCards,
+        reportUrl: task.reportUrl ?? '',
+        updatedAt: task.updatedAt,
+      },
+    }
+  }
+
+  function buildFeatureRecords(task, moduleResult) {
+    const matchedFeatures = getMatchedFeatureMenus(task.moduleKey, task)
+    return matchedFeatures.map((feature, index) => ({
+      recordId: `${task.taskId}:${feature.key}`,
+      taskId: task.taskId,
+      tenantId: task.tenantId,
+      ownerId: task.ownerId,
+      moduleKey: task.moduleKey,
+      featureKey: feature.key,
+      featureName: feature.name,
+      scenario: task.scenario,
+      status: task.status,
+      payload: buildFeatureDetail(task, feature, moduleResult, index),
+    }))
+  }
+
+  async function persistFeatureRecords(task, moduleResult = null) {
+    if (!task || task.status !== 'completed') return
+    if (typeof dataRepository.upsertFeatureRecord !== 'function') return
+
+    const records = buildFeatureRecords(task, moduleResult)
+    if (!records.length) return
+
+    await Promise.all(
+      records.map((record) =>
+        dataRepository.upsertFeatureRecord(record).catch((error) => {
+          console.warn(
+            '[task-service] failed to upsert feature record:',
+            record.recordId,
+            error?.message ?? error,
+          )
+        }),
+      ),
+    )
+  }
+
   async function reconcileDatabase() {
     await dataRepository.requeueRunningTasks()
     const completedTasks = await dataRepository.listTasksByStatus('completed', 2000)
     for (const task of completedTasks) {
+      const moduleResult = moduleLogicService?.analyzeTask?.(task) ?? null
       const changed = await reportService.ensureTaskReport(task)
       if (changed) {
         await dataRepository.updateTask(task)
       }
+      await persistFeatureRecords(task, moduleResult)
     }
   }
 
@@ -192,7 +287,7 @@ export function createTaskService({
         return
       }
 
-      const runtime = context.runtime ?? (await getModuleRuntime(task.moduleKey))
+      const runtime = context.runtime ?? (await getModuleRuntime(task.moduleKey, task.tenantId))
 
       if (context.timedOut) {
         const retries = retryCounter.get(taskId) ?? 0
@@ -236,11 +331,16 @@ export function createTaskService({
         return
       }
 
+      const moduleResult = moduleLogicService?.analyzeTask?.(task) ?? null
       task.status = 'completed'
       task.updatedAt = new Date().toISOString()
       task.errorMessage = undefined
+      if (moduleResult?.summary) {
+        task.summary = moduleResult.summary
+      }
       await reportService.ensureTaskReport(task)
       await dataRepository.updateTask(task)
+      await persistFeatureRecords(task, moduleResult)
       retryCounter.delete(taskId)
     } finally {
       inFlightTaskMeta.delete(taskId)
@@ -279,7 +379,7 @@ export function createTaskService({
       return
     }
 
-    const runtime = await getModuleRuntime(queuedTask.moduleKey)
+    const runtime = await getModuleRuntime(queuedTask.moduleKey, queuedTask.tenantId)
     const estimateMs = estimateProcessMs(queuedTask)
     const timeoutMs = runtime.execution.timeoutSeconds * 1000
     const timedOut = estimateMs > timeoutMs
@@ -334,33 +434,43 @@ export function createTaskService({
     if (!access.ok) {
       return { error: access }
     }
-    const normalizedModuleKey = access.moduleKey
 
-    const scenario = String(payload?.scenario ?? '').trim()
-    const inputText = String(payload?.inputText ?? '').trim()
-    const attachments = Array.isArray(payload?.attachments)
-      ? payload.attachments.map((item) => String(item).trim().slice(0, MAX_ATTACHMENT_NAME_LENGTH)).filter(Boolean)
-      : []
-
-    if (!scenario || !inputText) {
-      return { error: fail(400, 'TASK_INVALID_PAYLOAD', '请填写任务场景和输入内容。') }
-    }
-    if (scenario.length > MAX_SCENARIO_LENGTH) {
-      return { error: fail(400, 'TASK_SCENARIO_TOO_LONG', `任务场景长度不能超过 ${MAX_SCENARIO_LENGTH} 字符。`) }
-    }
-    if (inputText.length > MAX_INPUT_LENGTH) {
-      return { error: fail(400, 'TASK_INPUT_TOO_LONG', `任务输入内容不能超过 ${MAX_INPUT_LENGTH} 字符。`) }
-    }
-    if (attachments.length > MAX_ATTACHMENTS) {
-      return { error: fail(400, 'TASK_ATTACHMENTS_TOO_MANY', `附件数量不能超过 ${MAX_ATTACHMENTS} 个。`) }
+    const validation = moduleLogicService?.validateTaskInput?.(moduleKey, payload) ?? {
+      ok: true,
+      errors: [],
+      warnings: [],
+      data: {
+        scenario: String(payload?.scenario ?? '').trim(),
+        inputText: String(payload?.inputText ?? '').trim(),
+        attachments: Array.isArray(payload?.attachments)
+          ? payload.attachments.map((item) => String(item))
+          : [],
+      },
     }
 
-    const runtime = await getModuleRuntime(normalizedModuleKey)
+    if (!validation.ok) {
+      return {
+        error: fail(
+          400,
+          'TASK_INVALID_PAYLOAD',
+          validation.errors?.join(' ') || 'Task payload is invalid.',
+        ),
+      }
+    }
+
+    const scenario = validation.data.scenario
+    const inputText = validation.data.inputText
+    const attachments = validation.data.attachments
+
+    const runtime = await getModuleRuntime(moduleKey, user.tenantId)
     const mode = runtime.execution.mode
     const hasRiskSignal = includesToken(inputText, runtime.rule.riskSignals)
 
     let status = 'queued'
     let summary = `Task queued and waiting for execution (scenario: ${scenario}).`
+    if (validation.warnings?.length) {
+      summary += ` Validation warnings: ${validation.warnings.join(' ')}`
+    }
 
     if (mode === 'manual') {
       status = 'review'
@@ -371,9 +481,10 @@ export function createTaskService({
     }
 
     const task = {
-      taskId: `${normalizedModuleKey}-${Date.now().toString(36)}-${randomBytes(2).toString('hex')}`,
+      taskId: `${moduleKey}-${Date.now().toString(36)}-${randomBytes(2).toString('hex')}`,
+      tenantId: user.tenantId ?? 't-platform',
       ownerId: user.id,
-      moduleKey: normalizedModuleKey,
+      moduleKey,
       scenario,
       inputText,
       attachments,
@@ -395,9 +506,8 @@ export function createTaskService({
     if (!access.ok) {
       return { error: access }
     }
-    const normalizedModuleKey = access.moduleKey
 
-    const task = await dataRepository.findTaskByIdForUser(user.id, normalizedModuleKey, taskId)
+    const task = await dataRepository.findTaskByIdForUser(user.id, moduleKey, taskId, user.tenantId)
     if (!task) {
       return { error: fail(404, 'TASK_NOT_FOUND', 'Task not found.') }
     }
@@ -409,9 +519,8 @@ export function createTaskService({
     if (!access.ok) {
       return { error: access }
     }
-    const normalizedModuleKey = access.moduleKey
 
-    const rows = await dataRepository.listTasksByUserAndModule(user.id, normalizedModuleKey, 12)
+    const rows = await dataRepository.listTasksByUserAndModule(user.id, moduleKey, 12, user.tenantId)
     const history = await Promise.all(rows.map((task) => toClientTask(task, user.id)))
     return { data: history }
   }
@@ -421,11 +530,18 @@ export function createTaskService({
     return moduleCatalog.filter((item) => enabled.has(item.moduleKey))
   }
 
+  function getModuleSchema(moduleKey) {
+    if (!getModuleExists(moduleKey)) {
+      return null
+    }
+    return moduleLogicService?.getSchema?.(moduleKey) ?? null
+  }
+
   async function canUserAccessTaskReport(task, requesterUserId) {
     if (!task || task.ownerId !== requesterUserId) {
       return fail(403, 'REPORT_FORBIDDEN', 'No permission to access this report.')
     }
-    const runtime = await getModuleRuntime(task.moduleKey)
+    const runtime = await getModuleRuntime(task.moduleKey, task.tenantId)
     if (!runtime.visibility.allowExport || !runtime.visibility.allowCustomerView) {
       return fail(403, 'REPORT_FORBIDDEN', 'Report export for this module is disabled.')
     }
@@ -444,6 +560,7 @@ export function createTaskService({
     getTask,
     getHistory,
     getEnabledModules,
+    getModuleSchema,
     findTaskByReportFile,
     toClientTask,
     canUserAccessTaskReport,
@@ -453,3 +570,4 @@ export function createTaskService({
     }),
   }
 }
+
