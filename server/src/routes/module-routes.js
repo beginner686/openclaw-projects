@@ -17,6 +17,22 @@ export function createModuleRoutes({ authMiddleware, taskService }) {
     res.json(result.data)
   })
 
+  router.get('/:moduleKey/schema', authMiddleware, async (req, res) => {
+    const moduleKey = String(req.params.moduleKey)
+    const modules = await taskService.getEnabledModules(req.authUser)
+    const hasAccess = modules.some((item) => item.moduleKey === moduleKey)
+    if (!hasAccess) {
+      res.status(403).json({ code: 'MODULE_FORBIDDEN', message: 'Current account has no access to this module.' })
+      return
+    }
+    const schema = taskService.getModuleSchema(moduleKey)
+    if (!schema) {
+      res.status(404).json({ code: 'MODULE_NOT_FOUND', message: 'Module not found.' })
+      return
+    }
+    res.json(schema)
+  })
+
   router.get('/:moduleKey/tasks/:taskId', authMiddleware, async (req, res) => {
     const result = await taskService.getTask(req.authUser, String(req.params.moduleKey), String(req.params.taskId))
     if (result.error) {

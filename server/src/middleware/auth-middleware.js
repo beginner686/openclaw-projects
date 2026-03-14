@@ -1,5 +1,5 @@
 export function createAuthMiddleware({ dataRepository, securityService }) {
-  return async function authMiddleware(req, res, next) {
+  const authMiddleware = async function authMiddleware(req, res, next) {
     const authHeader = req.headers.authorization
     if (!authHeader?.startsWith('Bearer ')) {
       res.status(401).json({ code: 'AUTH_MISSING_TOKEN', message: '请先登录。' })
@@ -28,4 +28,15 @@ export function createAuthMiddleware({ dataRepository, securityService }) {
       res.status(401).json({ code: 'AUTH_TOKEN_INVALID', message: '登录状态已过期，请重新登录。' })
     }
   }
+
+  const requireAdmin = function requireAdmin(req, res, next) {
+    if (req.authUser?.role !== 'admin') {
+      res.status(403).json({ code: 'FORBIDDEN', message: '无权访问，需要管理员权限。' })
+      return
+    }
+    next()
+  }
+
+  return { authMiddleware, requireAdmin }
 }
+

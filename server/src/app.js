@@ -16,6 +16,7 @@ import { createPlatformRepository } from './repositories/platform-repository.js'
 import { createSecurityService } from './services/security-service.js'
 import { createReportService } from './services/report-service.js'
 import { createTaskService } from './services/task-service.js'
+import { createModuleLogicService } from './services/module-logic-service.js'
 import { createAuthService } from './services/auth-service.js'
 import { createDashboardService } from './services/dashboard-service.js'
 import { createPlatformService } from './services/platform-service.js'
@@ -41,6 +42,8 @@ export async function createBackendApp() {
     paths,
     moduleCatalog,
     getModuleName,
+    normalizeModuleKey,
+    getModuleKeyVariants,
     securityService,
   })
 
@@ -57,7 +60,9 @@ export async function createBackendApp() {
     paths,
     getModuleName,
     getModuleRule,
+    moduleLogicService,
     securityService,
+    dataRepository,
   })
 
   const taskService = createTaskService({
@@ -65,6 +70,8 @@ export async function createBackendApp() {
     moduleCatalog,
     getModuleName,
     getModuleRule,
+    normalizeModuleKey,
+    moduleLogicService,
     dataRepository,
     reportService,
   })

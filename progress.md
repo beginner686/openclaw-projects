@@ -1,0 +1,71 @@
+# Progress
+
+## 2026-03-12
+- 完成方案确认：按 B 执行（独立子系统）
+- 完成后端：
+  - anti_fraud_* 表结构与仓储方法
+  - 反诈服务（识别、存证、报告、投诉、套餐配额）
+  - 反诈路由接入 app
+- 完成前端：
+  - 反诈 API 客户端与类型
+  - 专用反诈页面 6 大板块
+  - 模块页按 moduleKey 分流到专用页面
+- 验证：
+  - node --check 通过（关键后端文件）
+  - npm run build 通过
+  - 登录 + /api/anti-fraud/dashboard 可返回业务数据
+
+## 2026-03-13
+- 完成项目状态复盘，确认当前为可用 MVP，未达生产完善版。
+- 完成 1 周生产可用冲刺计划落盘：
+  - 更新 `task_plan.md`（分阶段、分日期、验收标准、风险）
+  - 更新 `findings.md`（P0/P1 缺口归纳）
+- 已与用户确认策略：
+  - 当前阶段不接入抖音/快手 API
+  - 先做稳定性与一致性完善
+- Phase 1 已完成（模块 key 对齐 + 兼容迁移）：
+  - 修改 `server/src/config/catalog.js`：统一 3 组 module key，并新增 normalize/variants
+  - 修改 `server/src/services/task-service.js`：入参模块 key 归一化
+  - 修改 `server/src/repositories/data-repository.js`：用户/任务 key 归一、查询兼容、启动迁移
+  - 修改 `server/src/app.js`：注入 key 归一化依赖
+- 验证：
+  - `node --check`（catalog/data-repository/task-service/app）通过
+  - `npm run build` 通过
+- Phase 2 已完成（前端权限收敛）：
+  - 修改 `src/stores/auth.ts`：移除“全模块自动开通”逻辑
+  - 新增前端旧 key -> 新 key 兼容映射，历史会话可平滑过渡
+- 验证：
+  - `npm run build` 通过
+- Phase 4 已推进（后端回归测试）：
+  - 新增 `server/tests/auth-service.test.js`（登录/注册关键路径）
+  - 新增 `server/tests/task-service.test.js`（旧 key 兼容、边界输入约束）
+  - 新增 `server/tests/anti-fraud-service.test.js`（新增错误码与参数校验）
+  - 更新 `package.json`：`test:server` 改为 `node --test "server/tests/**/*.test.js"`
+- 回归修复：
+  - 修复 `server/src/services/task-service.js`：
+    - 恢复 `normalizeModuleKey` 在访问控制中的归一化
+    - 恢复场景/输入/附件数量边界校验
+    - 修复历史查询使用未归一化 key 的问题
+  - 修复 `server/src/services/auth-service.js`：
+    - 保留管理员全模块开通
+    - 恢复客户默认包含 `anti-fraud-guardian` 与 `smart-grocery-supermarket`
+- 验证：
+  - `npm run test:server` 通过（15/15）
+- Phase 3 进行中（后端输入校验与错误处理增强已完成）：
+  - 修改 `server/src/services/anti-fraud-service.js`：
+    - 新增月份、周期、场景、目标字段、ID 等校验
+    - 增加 `COMPLAINT_EVIDENCE_NOT_FOUND` 等明确错误码
+  - 修改 `server/src/services/grocery-service.js`：
+    - 新增预算/人数/餐次数值校验
+    - 增加比价商品数量上限校验
+  - 修改 `server/src/services/task-service.js`：
+    - 新增场景长度、输入长度、附件数量约束
+- 验证：
+  - `node --check`（anti-fraud-service/grocery-service/task-service）通过
+  - `npm run build` 通过
+- Phase 3 已完成（前端联调校验）：
+  - 修改 `src/views/AntiFraudGuardianView.vue`：补齐目标/扫描/投诉前置校验
+  - 修改 `src/views/SmartGroceryView.vue`：补齐预算/比价/新鲜度前置校验
+  - 修改 `src/views/ModuleWorkspaceView.vue`：补齐任务提交前置校验
+- 验证：
+  - `npm run build` 通过

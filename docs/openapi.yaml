@@ -1,0 +1,1679 @@
+﻿openapi: 3.0.3
+info:
+  title: OpenClaw Backend API
+  version: 1.1.0
+  description: |
+    OpenClaw 项目后端接口文档（基于当前实现）。
+
+    - 基础地址: http://127.0.0.1:4000
+    - 管理端接口需要 admin 角色
+servers:
+  - url: http://127.0.0.1:4000
+tags:
+  - name: Health
+  - name: Auth
+  - name: Customer
+  - name: Modules
+  - name: Admin
+  - name: Reports
+paths:
+  /api/health:
+    get:
+      tags: [Health]
+      summary: 健康检查
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /api/auth/login:
+    post:
+      tags: [Auth]
+      summary: 登录
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: 登录成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /api/auth/register:
+    post:
+      tags: [Auth]
+      summary: 注册
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: 注册成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '409':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /api/auth/logout:
+    post:
+      tags: [Auth]
+      summary: 退出登录
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiMessage'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /api/auth/profile:
+    get:
+      tags: [Auth]
+      summary: 当前登录用户
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthUser'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /api/customer/dashboard:
+    get:
+      tags: [Customer]
+      summary: 客户中心仪表盘
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerDashboardData'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /api/modules:
+    get:
+      tags: [Modules]
+      summary: 获取当前用户开通模块
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ModuleMeta'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /api/modules/{moduleKey}/history:
+    get:
+      tags: [Modules]
+      summary: 获取模块任务历史
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ModuleKey'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ModuleTaskResult'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /api/modules/{moduleKey}/schema:
+    get:
+      tags: [Modules]
+      summary: 获取模块输入 schema
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ModuleKey'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModuleTaskSchema'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /api/modules/{moduleKey}/tasks:
+    post:
+      tags: [Modules]
+      summary: 创建模块任务
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ModuleKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ModuleTaskPayload'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModuleTaskResult'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /api/modules/{moduleKey}/tasks/{taskId}:
+    get:
+      tags: [Modules]
+      summary: 获取单个模块任务
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ModuleKey'
+        - $ref: '#/components/parameters/TaskId'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModuleTaskResult'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /api/admin/stats:
+    get:
+      tags: [Admin]
+      summary: 管理后台统计
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminStats'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /api/admin/dictionary:
+    get:
+      tags: [Admin]
+      summary: 获取数据字典
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: type
+          schema:
+            type: string
+          description: 可选，按 dictType 过滤
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataDictionaryResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /api/admin/module-factory/modules:
+    get:
+      tags: [Admin]
+      summary: 获取已生成自定义模块
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GeneratedModuleListResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /api/admin/module-factory/generate:
+    post:
+      tags: [Admin]
+      summary: 根据设计文档生成子模块后台
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerateModuleRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GeneratedModuleResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '409':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /api/admin/users:
+    get:
+      tags: [Admin]
+      summary: 用户列表
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - in: query
+          name: search
+          schema:
+            type: string
+          description: 搜索用户姓名或账号
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUsersResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /api/admin/users/{id}/modules:
+    put:
+      tags: [Admin]
+      summary: 更新用户开通模块
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUserModulesRequest'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OkResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /api/admin/tasks:
+    get:
+      tags: [Admin]
+      summary: 全局任务列表（含汇总）
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - in: query
+          name: status
+          schema:
+            $ref: '#/components/schemas/TaskStatus'
+        - in: query
+          name: moduleKey
+          schema:
+            type: string
+        - in: query
+          name: keyword
+          schema:
+            type: string
+          description: 任务ID/用户ID/场景/输入内容/摘要模糊搜索
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminTaskListResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /api/admin/tasks/{taskId}:
+    get:
+      tags: [Admin]
+      summary: 任务详情
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminTask'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /api/admin/tasks/{taskId}/review:
+    post:
+      tags: [Admin]
+      summary: 单任务审核
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReviewTaskRequest'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminTask'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '409':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /api/admin/tasks/review-bulk:
+    post:
+      tags: [Admin]
+      summary: 批量审核
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BulkReviewRequest'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BulkReviewResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /api/admin/module/{moduleKey}/overview:
+    get:
+      tags: [Admin]
+      summary: 模块概览
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ModuleKey'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminModuleOverview'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /api/admin/module/{moduleKey}/tasks:
+    get:
+      tags: [Admin]
+      summary: 模块任务列表
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ModuleKey'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - in: query
+          name: status
+          schema:
+            $ref: '#/components/schemas/TaskStatus'
+        - in: query
+          name: keyword
+          schema:
+            type: string
+        - in: query
+          name: featureKey
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModuleTaskListResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /api/admin/module/{moduleKey}/features/{featureKey}/records:
+    get:
+      tags: [Admin]
+      summary: 模块子功能记录列表
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ModuleKey'
+        - $ref: '#/components/parameters/FeatureKey'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - in: query
+          name: status
+          schema:
+            $ref: '#/components/schemas/TaskStatus'
+        - in: query
+          name: keyword
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModuleFeatureRecordListResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /api/admin/module/{moduleKey}/users:
+    get:
+      tags: [Admin]
+      summary: 模块用户列表
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ModuleKey'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AdminUser'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /api/admin/module/{moduleKey}/reports:
+    get:
+      tags: [Admin]
+      summary: 模块报告列表
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ModuleKey'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ModuleReport'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /api/admin/module/{moduleKey}/workbench:
+    get:
+      tags: [Admin]
+      summary: 模块专属工作台
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ModuleKey'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModuleWorkbench'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /api/admin/module/{moduleKey}/settings:
+    get:
+      tags: [Admin]
+      summary: 获取模块设置
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ModuleKey'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModuleSettings'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+    put:
+      tags: [Admin]
+      summary: 更新模块设置
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ModuleKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: '#/components/schemas/ModuleSettingsConfig'
+                - type: object
+                  properties:
+                    config:
+                      $ref: '#/components/schemas/ModuleSettingsConfig'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModuleSettings'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /reports/{fileName}:
+    get:
+      tags: [Reports]
+      summary: 下载报告文件
+      description: |
+        支持两种鉴权方式（满足其一）：
+        1) Authorization Bearer JWT
+        2) URL query 参数 access（报告访问令牌）
+      security:
+        - bearerAuth: []
+        - reportAccessToken: []
+      parameters:
+        - in: path
+          name: fileName
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: access
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 成功，返回报告文件
+          content:
+            text/html:
+              schema:
+                type: string
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    reportAccessToken:
+      type: apiKey
+      in: query
+      name: access
+
+  parameters:
+    ModuleKey:
+      in: path
+      name: moduleKey
+      required: true
+      schema:
+        type: string
+    FeatureKey:
+      in: path
+      name: featureKey
+      required: true
+      schema:
+        type: string
+    TaskId:
+      in: path
+      name: taskId
+      required: true
+      schema:
+        type: string
+    Page:
+      in: query
+      name: page
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+    Limit:
+      in: query
+      name: limit
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 50
+
+  responses:
+    ErrorResponse:
+      description: 业务错误
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+  schemas:
+    ErrorResponse:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+
+    TaskStatus:
+      type: string
+      enum: [review, queued, running, completed, failed]
+
+    ApiMessage:
+      type: object
+      properties:
+        message:
+          type: string
+
+    OkResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: ok
+        queue:
+          type: object
+          properties:
+            inFlight:
+              type: integer
+            maxConcurrency:
+              type: integer
+        time:
+          type: string
+          format: date-time
+
+    LoginRequest:
+      type: object
+      required: [account, password]
+      properties:
+        account:
+          type: string
+        password:
+          type: string
+        remember:
+          type: boolean
+          default: false
+
+    RegisterRequest:
+      type: object
+      required: [name, contact, password]
+      properties:
+        name:
+          type: string
+        contact:
+          type: string
+        password:
+          type: string
+        role:
+          type: string
+          enum: [admin, customer]
+          default: customer
+
+    AuthUser:
+      type: object
+      properties:
+        id:
+          type: string
+        tenantId:
+          type: string
+        name:
+          type: string
+        contact:
+          type: string
+        enabledModules:
+          type: array
+          items:
+            type: string
+        role:
+          type: string
+          enum: [admin, customer]
+        tokenState:
+          type: string
+
+    AuthResponse:
+      type: object
+      properties:
+        token:
+          type: string
+        user:
+          $ref: '#/components/schemas/AuthUser'
+
+    ModuleMeta:
+      type: object
+      properties:
+        moduleKey:
+          type: string
+        name:
+          type: string
+        category:
+          type: string
+          enum: [enterprise, personal]
+        description:
+          type: string
+        icon:
+          type: string
+        status:
+          type: string
+        mobileSupported:
+          type: boolean
+
+    ModuleTaskResult:
+      type: object
+      properties:
+        taskId:
+          type: string
+        moduleKey:
+          type: string
+        status:
+          $ref: '#/components/schemas/TaskStatus'
+        summary:
+          type: string
+        updatedAt:
+          type: string
+          format: date-time
+        reportUrl:
+          type: string
+        errorMessage:
+          type: string
+          nullable: true
+
+    ModuleTaskPayload:
+      type: object
+      required: [scenario, inputText]
+      properties:
+        scenario:
+          type: string
+        inputText:
+          type: string
+        attachments:
+          type: array
+          items:
+            type: string
+
+    ModuleTaskSchemaMetric:
+      type: object
+      properties:
+        key:
+          type: string
+        label:
+          type: string
+        unit:
+          type: string
+
+    ModuleTaskSchema:
+      type: object
+      properties:
+        scenarios:
+          type: array
+          items:
+            type: string
+        inputHints:
+          type: array
+          items:
+            type: string
+        samplePrompt:
+          type: string
+        metrics:
+          type: array
+          items:
+            $ref: '#/components/schemas/ModuleTaskSchemaMetric'
+
+    DashboardReport:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        format:
+          type: string
+        url:
+          type: string
+
+    DashboardNotification:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        level:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    CustomerDashboardData:
+      type: object
+      properties:
+        openedModules:
+          type: array
+          items:
+            type: string
+        recentTasks:
+          type: array
+          items:
+            $ref: '#/components/schemas/ModuleTaskResult'
+        reports:
+          type: array
+          items:
+            $ref: '#/components/schemas/DashboardReport'
+        notifications:
+          type: array
+          items:
+            $ref: '#/components/schemas/DashboardNotification'
+
+    ModuleRankItem:
+      type: object
+      properties:
+        moduleKey:
+          type: string
+        name:
+          type: string
+        category:
+          type: string
+        icon:
+          type: string
+        total:
+          type: integer
+        completed:
+          type: integer
+        failed:
+          type: integer
+        running:
+          type: integer
+        queued:
+          type: integer
+        review:
+          type: integer
+
+    AdminStats:
+      type: object
+      properties:
+        totalUsers:
+          type: integer
+        totalTasks:
+          type: integer
+        completedTasks:
+          type: integer
+        failedTasks:
+          type: integer
+        runningTasks:
+          type: integer
+        pendingReviewTasks:
+          type: integer
+        successRate:
+          type: integer
+        moduleRanking:
+          type: array
+          items:
+            $ref: '#/components/schemas/ModuleRankItem'
+
+    AdminUser:
+      type: object
+      description: 当前实现可能包含内部字段（如 passwordSalt/passwordHash/passwordAlgo）
+      properties:
+        id:
+          type: string
+        tenantId:
+          type: string
+        name:
+          type: string
+        contact:
+          type: string
+        enabledModules:
+          type: array
+          items:
+            type: string
+        role:
+          type: string
+        tokenState:
+          type: string
+        tokenVersion:
+          type: integer
+        passwordSalt:
+          type: string
+        passwordHash:
+          type: string
+        passwordAlgo:
+          type: string
+        taskCount:
+          type: integer
+        lastTaskAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    AdminUsersResponse:
+      type: object
+      properties:
+        users:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminUser'
+        total:
+          type: integer
+
+    DataDictionaryItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        dictType:
+          type: string
+        dictKey:
+          type: string
+        dictValue:
+          type: string
+        dictLabel:
+          type: string
+        description:
+          type: string
+        sortOrder:
+          type: integer
+        isSystem:
+          type: boolean
+        status:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+          nullable: true
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    DataDictionaryResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/DataDictionaryItem'
+        grouped:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              $ref: '#/components/schemas/DataDictionaryItem'
+
+    GenerateModuleRequest:
+      type: object
+      required: [moduleName, designDoc]
+      properties:
+        moduleName:
+          type: string
+        moduleKey:
+          type: string
+        category:
+          type: string
+          enum: [enterprise, personal]
+        icon:
+          type: string
+        status:
+          type: string
+          enum: [active, beta, coming_soon]
+        description:
+          type: string
+        designDoc:
+          type: string
+
+    GeneratedModuleItem:
+      type: object
+      properties:
+        moduleKey:
+          type: string
+        name:
+          type: string
+        category:
+          type: string
+          enum: [enterprise, personal]
+        description:
+          type: string
+        icon:
+          type: string
+        status:
+          type: string
+          enum: [active, beta, coming_soon]
+        mobileSupported:
+          type: boolean
+        createdBy:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+          nullable: true
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    GeneratedModuleResponse:
+      type: object
+      properties:
+        module:
+          $ref: '#/components/schemas/GeneratedModuleItem'
+        blueprint:
+          type: object
+          additionalProperties: true
+        executionRule:
+          type: object
+          additionalProperties: true
+        sourceDoc:
+          type: string
+
+    GeneratedModuleListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/GeneratedModuleItem'
+
+    AdminTask:
+      type: object
+      properties:
+        taskId:
+          type: string
+        tenantId:
+          type: string
+        ownerId:
+          type: string
+        moduleKey:
+          type: string
+        scenario:
+          type: string
+        inputText:
+          type: string
+        attachments:
+          type: array
+          items:
+            type: string
+        status:
+          $ref: '#/components/schemas/TaskStatus'
+        summary:
+          type: string
+        reportUrl:
+          type: string
+        reportFormat:
+          type: string
+        errorMessage:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    AdminTaskSummary:
+      type: object
+      properties:
+        total:
+          type: integer
+        review:
+          type: integer
+        queued:
+          type: integer
+        running:
+          type: integer
+        completed:
+          type: integer
+        failed:
+          type: integer
+        processing:
+          type: integer
+        successRate:
+          type: integer
+
+    AdminTaskListResponse:
+      type: object
+      properties:
+        tasks:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminTask'
+        total:
+          type: integer
+        summary:
+          $ref: '#/components/schemas/AdminTaskSummary'
+
+    ModuleTaskFeatureApplied:
+      type: object
+      properties:
+        key:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+
+    ModuleTaskListResponse:
+      type: object
+      properties:
+        tasks:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminTask'
+        total:
+          type: integer
+        summary:
+          $ref: '#/components/schemas/AdminTaskSummary'
+        featureApplied:
+          allOf:
+            - $ref: '#/components/schemas/ModuleTaskFeatureApplied'
+          nullable: true
+
+    ModuleFeatureRecordPayload:
+      type: object
+      properties:
+        headline:
+          type: string
+        highlights:
+          type: array
+          items:
+            type: string
+        finding:
+          type: string
+        recommendation:
+          type: string
+        details:
+          type: object
+          additionalProperties: true
+
+    ModuleFeatureRecord:
+      type: object
+      properties:
+        recordId:
+          type: string
+        tenantId:
+          type: string
+        taskId:
+          type: string
+        ownerId:
+          type: string
+        moduleKey:
+          type: string
+        featureKey:
+          type: string
+        featureName:
+          type: string
+        scenario:
+          type: string
+        status:
+          $ref: '#/components/schemas/TaskStatus'
+        payload:
+          $ref: '#/components/schemas/ModuleFeatureRecordPayload'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    ModuleFeatureRecordListResponse:
+      type: object
+      properties:
+        records:
+          type: array
+          items:
+            $ref: '#/components/schemas/ModuleFeatureRecord'
+        total:
+          type: integer
+        summary:
+          $ref: '#/components/schemas/AdminTaskSummary'
+        featureApplied:
+          allOf:
+            - $ref: '#/components/schemas/ModuleTaskFeatureApplied'
+          nullable: true
+
+    ReviewTaskRequest:
+      type: object
+      required: [action]
+      properties:
+        action:
+          type: string
+          enum: [approve, reject]
+        reason:
+          type: string
+
+    BulkReviewRequest:
+      type: object
+      required: [taskIds, action]
+      properties:
+        taskIds:
+          type: array
+          items:
+            type: string
+        action:
+          type: string
+          enum: [approve, reject]
+        reason:
+          type: string
+
+    BulkReviewFailedItem:
+      type: object
+      properties:
+        taskId:
+          type: string
+        code:
+          type: string
+        message:
+          type: string
+
+    BulkReviewResponse:
+      type: object
+      properties:
+        processed:
+          type: integer
+        success:
+          type: integer
+        failed:
+          type: integer
+        failedItems:
+          type: array
+          items:
+            $ref: '#/components/schemas/BulkReviewFailedItem'
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminTask'
+
+    AdminModuleOverview:
+      type: object
+      properties:
+        module:
+          $ref: '#/components/schemas/ModuleMeta'
+        stat:
+          type: object
+          properties:
+            total:
+              type: integer
+            completed:
+              type: integer
+            failed:
+              type: integer
+            running:
+              type: integer
+            queued:
+              type: integer
+            review:
+              type: integer
+            successRate:
+              type: integer
+        activeUsers:
+          type: integer
+        recentTasks:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminTask'
+        workbench:
+          $ref: '#/components/schemas/ModuleWorkbench'
+
+    ModuleWorkbenchFeature:
+      type: object
+      properties:
+        key:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        target:
+          type: string
+          enum: [overview, tasks, users, reports, settings]
+        targetPath:
+          type: string
+        taskCount:
+          type: integer
+        pendingCount:
+          type: integer
+        completedCount:
+          type: integer
+        successRate:
+          type: integer
+        lastUpdatedAt:
+          type: string
+          format: date-time
+          nullable: true
+        status:
+          type: string
+          enum: [idle, running, healthy, attention]
+
+    ModuleWorkbenchKpi:
+      type: object
+      properties:
+        key:
+          type: string
+        label:
+          type: string
+        value:
+          type: number
+        unit:
+          type: string
+        target:
+          type: number
+          nullable: true
+        delta:
+          type: number
+        level:
+          type: string
+          enum: [good, stable, warning]
+        description:
+          type: string
+        calc:
+          type: string
+        activeUsers:
+          type: integer
+
+    ModuleWorkbench:
+      type: object
+      properties:
+        moduleKey:
+          type: string
+        moduleName:
+          type: string
+        projectName:
+          type: string
+        uniqueValue:
+          type: string
+        featureMenus:
+          type: array
+          items:
+            $ref: '#/components/schemas/ModuleWorkbenchFeature'
+        kpiCards:
+          type: array
+          items:
+            $ref: '#/components/schemas/ModuleWorkbenchKpi'
+        insights:
+          type: array
+          items:
+            type: string
+
+    ModuleReport:
+      type: object
+      properties:
+        taskId:
+          type: string
+        scenario:
+          type: string
+        updatedAt:
+          type: string
+          format: date-time
+        reportFormat:
+          type: string
+        reportUrl:
+          type: string
+
+    ModuleSettingsConfig:
+      type: object
+      properties:
+        execution:
+          type: object
+          properties:
+            mode:
+              type: string
+              enum: [auto, manual, hybrid]
+            maxConcurrency:
+              type: integer
+            timeoutSeconds:
+              type: integer
+            retryLimit:
+              type: integer
+        alerts:
+          type: object
+          properties:
+            enabled:
+              type: boolean
+            channels:
+              type: array
+              items:
+                type: string
+                enum: [site, email, webhook]
+            webhookUrl:
+              type: string
+            emails:
+              type: array
+              items:
+                type: string
+        visibility:
+          type: object
+          properties:
+            allowCustomerView:
+              type: boolean
+            allowExport:
+              type: boolean
+        rule:
+          type: object
+          properties:
+            focusChecks:
+              type: array
+              items:
+                type: string
+            riskSignals:
+              type: array
+              items:
+                type: string
+            failSignals:
+              type: array
+              items:
+                type: string
+            nextActions:
+              type: array
+              items:
+                type: string
+        integrations:
+          type: object
+          properties:
+            dataSource:
+              type: string
+            dashboardPath:
+              type: string
+            moduleCategory:
+              type: string
+        remarks:
+          type: string
+
+    ModuleSettings:
+      type: object
+      properties:
+        moduleKey:
+          type: string
+        moduleName:
+          type: string
+        moduleCategory:
+          type: string
+        source:
+          type: string
+          enum: [default, saved]
+        updatedBy:
+          type: string
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+          nullable: true
+        config:
+          $ref: '#/components/schemas/ModuleSettingsConfig'
+
+    UpdateUserModulesRequest:
+      type: object
+      required: [modules]
+      properties:
+        modules:
+          type: array
+          items:
+            type: string

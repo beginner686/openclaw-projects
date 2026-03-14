@@ -1,9 +1,21 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import MainLayout from '@/layouts/MainLayout.vue'
+import AdminLayout from '@/layouts/AdminLayout.vue'
+import ModuleAdminLayout from '@/layouts/ModuleAdminLayout.vue'
 import LandingView from '@/views/LandingView.vue'
 import CustomerCenterView from '@/views/CustomerCenterView.vue'
 import ModuleWorkspaceView from '@/views/ModuleWorkspaceView.vue'
 import StaticInfoView from '@/views/StaticInfoView.vue'
+import AdminDashboard from '@/views/admin/AdminDashboard.vue'
+import AdminUsersView from '@/views/admin/AdminUsersView.vue'
+import AdminTasksView from '@/views/admin/AdminTasksView.vue'
+import AdminModulesView from '@/views/admin/AdminModulesView.vue'
+import AdminModuleFactoryView from '@/views/admin/AdminModuleFactoryView.vue'
+import ModuleOverview from '@/views/admin/module/ModuleOverview.vue'
+import ModuleTasks from '@/views/admin/module/ModuleTasks.vue'
+import ModuleUsers from '@/views/admin/module/ModuleUsers.vue'
+import ModuleReports from '@/views/admin/module/ModuleReports.vue'
+import ModuleSettings from '@/views/admin/module/ModuleSettings.vue'
 import { useAuthStore } from '@/stores/auth'
 
 export const router = createRouter({
@@ -63,8 +75,82 @@ export const router = createRouter({
       ],
     },
     {
+      path: '/admin',
+      component: AdminLayout,
+      meta: { requiresAuth: true, requiresAdmin: true },
+      children: [
+        {
+          path: '',
+          name: 'admin-dashboard',
+          component: AdminDashboard,
+          meta: { requiresAuth: true, requiresAdmin: true },
+        },
+        {
+          path: 'users',
+          name: 'admin-users',
+          component: AdminUsersView,
+          meta: { requiresAuth: true, requiresAdmin: true },
+        },
+        {
+          path: 'tasks',
+          name: 'admin-tasks',
+          component: AdminTasksView,
+          meta: { requiresAuth: true, requiresAdmin: true },
+        },
+        {
+          path: 'modules',
+          name: 'admin-modules',
+          component: AdminModulesView,
+          meta: { requiresAuth: true, requiresAdmin: true },
+        },
+        {
+          path: 'module-factory',
+          name: 'admin-module-factory',
+          component: AdminModuleFactoryView,
+          meta: { requiresAuth: true, requiresAdmin: true },
+        },
+        {
+          path: 'module/:moduleKey',
+          component: ModuleAdminLayout,
+          meta: { requiresAuth: true, requiresAdmin: true },
+          children: [
+            {
+              path: '',
+              name: 'module-admin-overview',
+              component: ModuleOverview,
+              meta: { requiresAuth: true, requiresAdmin: true },
+            },
+            {
+              path: 'tasks',
+              name: 'module-admin-tasks',
+              component: ModuleTasks,
+              meta: { requiresAuth: true, requiresAdmin: true },
+            },
+            {
+              path: 'users',
+              name: 'module-admin-users',
+              component: ModuleUsers,
+              meta: { requiresAuth: true, requiresAdmin: true },
+            },
+            {
+              path: 'reports',
+              name: 'module-admin-reports',
+              component: ModuleReports,
+              meta: { requiresAuth: true, requiresAdmin: true },
+            },
+            {
+              path: 'settings',
+              name: 'module-admin-settings',
+              component: ModuleSettings,
+              meta: { requiresAuth: true, requiresAdmin: true },
+            },
+          ],
+        },
+      ],
+    },
+    {
       path: '/:pathMatch(.*)*',
-      redirect: { name: 'customer' },
+      redirect: { name: 'landing' },
     },
   ],
 })
@@ -72,9 +158,10 @@ export const router = createRouter({
 router.beforeEach((to) => {
   const auth = useAuthStore()
   auth.hydrate()
+  const homeRoute = auth.isAdmin ? { name: 'admin-dashboard' } : { name: 'customer' }
 
   if (to.meta.guestOnly && auth.isAuthenticated) {
-    return { name: 'customer' }
+    return homeRoute
   }
 
   if (to.meta.requiresAuth && !auth.isAuthenticated) {
@@ -84,11 +171,23 @@ router.beforeEach((to) => {
     }
   }
 
+  if (to.meta.requiresAdmin && !auth.isAdmin) {
+    return { name: 'customer' }
+  }
+
   if (to.name === 'module-workspace') {
     const moduleKey = String(to.params.moduleKey ?? '')
     const enabled = auth.user?.enabledModules ?? []
     if (!enabled.includes(moduleKey)) {
-      return { name: 'customer' }
+      return homeRoute
+    }
+  }
+
+  if (String(to.name ?? '').startsWith('module-admin-')) {
+    const moduleKey = String(to.params.moduleKey ?? '')
+    const enabled = auth.user?.enabledModules ?? []
+    if (!enabled.includes(moduleKey)) {
+      return { name: 'admin-modules' }
     }
   }
 

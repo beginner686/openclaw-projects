@@ -1,7 +1,6 @@
 import { defineStore } from 'pinia'
 import { loginRequest, logoutRequest, profileRequest, registerRequest, type LoginPayload, type RegisterPayload } from '@/api/auth'
 import type { AuthUser } from '@/types/domain'
-import { moduleCatalog } from '@/config/modules'
 import { clearSession, readStoredSession, saveSession } from '@/utils/session'
 
 interface AuthState {
@@ -11,15 +10,24 @@ interface AuthState {
   remember: boolean
 }
 
+const legacyModuleKeyMap: Record<string, string> = {
+  'matchmaking-ai': 'matchmaking-assistant',
+  'job-lead-capture': 'job-lead-automation',
+  'content-auto-publishing': 'content-generation-publisher',
+}
+
 function normalizeUserModules(user: AuthUser) {
-  const allKeys = moduleCatalog.map((item) => item.moduleKey)
-  const enabled = new Set(user.enabledModules)
-  for (const key of allKeys) {
-    enabled.add(key)
-  }
+  const enabled = new Set(
+    (user.enabledModules ?? [])
+      .map((item) => {
+        const normalized = String(item).trim()
+        return legacyModuleKeyMap[normalized] ?? normalized
+      })
+      .filter(Boolean),
+  )
   return {
     ...user,
-    enabledModules: allKeys.filter((key) => enabled.has(key)),
+    enabledModules: [...enabled],
   }
 }
 
@@ -32,7 +40,9 @@ export const useAuthStore = defineStore('auth', {
   }),
   getters: {
     isAuthenticated: (state) => Boolean(state.token && state.user),
+    isAdmin: (state) => state.user?.role === 'admin',
   },
+
   actions: {
     hydrate() {
       if (this.hydrated) {

@@ -4,22 +4,17 @@ import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import type { UploadProps, UploadUserFile } from 'element-plus'
 import { moduleMap } from '@/config/modules'
-import { fetchModuleHistory, fetchModuleTask, runModuleTask } from '@/api/modules'
+import { fetchEnabledModules, fetchModuleHistory, fetchModuleSchema, fetchModuleTask, runModuleTask } from '@/api/modules'
+import AntiFraudGuardianView from '@/views/AntiFraudGuardianView.vue'
+import SmartGroceryView from '@/views/SmartGroceryView.vue'
 import { useAuthStore } from '@/stores/auth'
-import type { ModuleTaskResult } from '@/types/domain'
+import type { ModuleMeta, ModuleTaskResult, ModuleTaskSchema } from '@/types/domain'
 
 const route = useRoute()
 const auth = useAuthStore()
 
-const scenarioList = [
-  '标准流程',
-  '加急执行',
-  '高安全模式',
-  '批量任务',
-]
-
 const taskForm = reactive({
-  scenario: '标准流程',
+  scenario: '',
   inputText: '',
   attachments: [] as string[],
 })
@@ -27,16 +22,41 @@ const taskForm = reactive({
 const uploadList = ref<UploadUserFile[]>([])
 const submitting = ref(false)
 const loadingHistory = ref(false)
+const loadingSchema = ref(false)
 const latestResult = ref<ModuleTaskResult | null>(null)
 const historyList = ref<ModuleTaskResult[]>([])
+const moduleSchema = ref<ModuleTaskSchema | null>(null)
 const errorText = ref('')
 const latestTaskId = ref('')
 const pollTimer = ref<number | null>(null)
 const pollAttempts = ref(0)
+const dynamicModuleMap = ref<Map<string, ModuleMeta>>(new Map(moduleMap))
 
 const moduleKey = computed(() => String(route.params.moduleKey ?? ''))
-const moduleMeta = computed(() => moduleMap.get(moduleKey.value))
 const hasAccess = computed(() => auth.user?.enabledModules.includes(moduleKey.value) ?? false)
+const isAntiFraudModule = computed(() => moduleKey.value === 'anti-fraud-guardian')
+const isSmartGroceryModule = computed(() => moduleKey.value === 'smart-grocery-supermarket')
+const isDedicatedModule = computed(() => isAntiFraudModule.value || isSmartGroceryModule.value)
+const moduleMeta = computed(() => {
+  const dynamicMeta = dynamicModuleMap.value.get(moduleKey.value)
+  if (dynamicMeta) return dynamicMeta
+  const staticMeta = moduleMap.get(moduleKey.value)
+  if (staticMeta) return staticMeta
+  if (!hasAccess.value) return null
+  return {
+    moduleKey: moduleKey.value,
+    name: moduleKey.value,
+    category: 'enterprise',
+    description: '动态生成模块',
+    icon: 'Grid',
+    status: 'beta',
+    mobileSupported: true,
+  } as ModuleMeta
+})
+const scenarioList = computed(() => moduleSchema.value?.scenarios ?? ['standard'])
+const inputPlaceholder = computed(() =>
+  moduleSchema.value?.samplePrompt || '请输入任务内容、规则或说明。',
+)
 
 const onUploadChange: UploadProps['onChange'] = (file, files) => {
   uploadList.value = files.slice(-5)
@@ -47,7 +67,7 @@ const onUploadChange: UploadProps['onChange'] = (file, files) => {
 }
 
 async function loadHistory() {
-  if (!moduleMeta.value || !hasAccess.value) {
+  if (!moduleMeta.value || !hasAccess.value || isDedicatedModule.value) {
     return
   }
 
@@ -71,9 +91,43 @@ async function loadHistory() {
   }
 }
 
+async function loadDynamicModuleMeta() {
+  try {
+    const modules = await fetchEnabledModules()
+    const merged = new Map<string, ModuleMeta>(moduleMap)
+    for (const item of modules) {
+      merged.set(item.moduleKey, item)
+    }
+    dynamicModuleMap.value = merged
+  } catch {
+    // Ignore metadata fetch failures and fallback to static modules.
+  }
+}
+
+async function loadModuleSchema() {
+  if (!moduleMeta.value || !hasAccess.value || isDedicatedModule.value) {
+    moduleSchema.value = null
+    return
+  }
+
+  loadingSchema.value = true
+  try {
+    moduleSchema.value = await fetchModuleSchema(moduleKey.value)
+    if (!scenarioList.value.includes(taskForm.scenario)) {
+      taskForm.scenario = scenarioList.value[0] || 'standard'
+    }
+  } catch (error) {
+    moduleSchema.value = null
+    errorText.value = error instanceof Error ? error.message : '模块配置加载失败。'
+  } finally {
+    loadingSchema.value = false
+  }
+}
+
 function statusTagType(status: ModuleTaskResult['status']) {
   if (status === 'completed') return 'success'
   if (status === 'failed') return 'danger'
+  if (status === 'review') return 'warning'
   if (status === 'running') return 'warning'
   return 'info'
 }
@@ -160,7 +214,7 @@ async function submitTask() {
   try {
     const result = await runModuleTask({
       moduleKey: moduleKey.value,
-      scenario: taskForm.scenario,
+      scenario: taskForm.scenario || scenarioList.value[0] || 'standard',
       inputText: taskForm.inputText,
       attachments: taskForm.attachments,
     })
@@ -170,6 +224,8 @@ async function submitTask() {
     if (result.status === 'queued' || result.status === 'running') {
       startPolling(result.taskId)
       ElMessage.success('任务已进入执行队列，系统会自动刷新进度。')
+    } else if (result.status === 'review') {
+      ElMessage.warning('任务已提交，当前处于待审核状态。')
     } else if (result.status === 'completed') {
       ElMessage.success('任务执行完成。')
     } else {
@@ -185,16 +241,22 @@ async function submitTask() {
 
 watch(moduleKey, () => {
   stopPolling()
+  moduleSchema.value = null
+  taskForm.scenario = ''
   taskForm.inputText = ''
   taskForm.attachments = []
   uploadList.value = []
   latestResult.value = null
   latestTaskId.value = ''
   pollAttempts.value = 0
+  void loadDynamicModuleMeta()
+  void loadModuleSchema()
   void loadHistory()
 })
 
 onMounted(() => {
+  void loadDynamicModuleMeta()
+  void loadModuleSchema()
   void loadHistory()
 })
 
@@ -225,9 +287,24 @@ onUnmounted(() => {
       title="当前账号未开通该业务，请在客户中心查看权限。"
     />
 
-    <div class="module-grid" v-if="moduleMeta && hasAccess">
+    <AntiFraudGuardianView v-if="moduleMeta && hasAccess && isAntiFraudModule" />
+    <SmartGroceryView v-if="moduleMeta && hasAccess && isSmartGroceryModule" />
+
+    <div class="module-grid" v-if="moduleMeta && hasAccess && !isDedicatedModule">
       <section class="card-panel task-form-panel">
         <h3>任务配置</h3>
+        <el-skeleton v-if="loadingSchema" :rows="3" animated />
+        <div v-else-if="moduleSchema" class="schema-tip">
+          <p class="muted">输入提示：</p>
+          <ul>
+            <li v-for="hint in moduleSchema.inputHints" :key="hint">{{ hint }}</li>
+          </ul>
+          <div class="metric-tags">
+            <el-tag v-for="metric in moduleSchema.metrics" :key="metric.key" type="info">
+              {{ metric.label }}{{ metric.unit ? ` (${metric.unit})` : '' }}
+            </el-tag>
+          </div>
+        </div>
         <el-form label-position="top">
           <el-form-item label="执行场景">
             <el-select v-model="taskForm.scenario" placeholder="请选择执行场景">
@@ -240,7 +317,7 @@ onUnmounted(() => {
               v-model="taskForm.inputText"
               type="textarea"
               :rows="6"
-              placeholder="请输入任务内容、规则或说明，例如：请对本周营销数据做复盘并输出 PDF 报告。"
+              :placeholder="inputPlaceholder"
             />
           </el-form-item>
 
@@ -341,6 +418,31 @@ onUnmounted(() => {
 .result-panel h3,
 .history-panel h3 {
   margin: 0 0 12px;
+}
+
+.schema-tip {
+  margin-bottom: 14px;
+  padding: 10px;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  background: #f8fafe;
+}
+
+.schema-tip ul {
+  margin: 6px 0 0;
+  padding-left: 18px;
+}
+
+.schema-tip li {
+  margin-bottom: 4px;
+  color: var(--text-muted);
+}
+
+.metric-tags {
+  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
 .right-column {
