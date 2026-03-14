@@ -12,6 +12,7 @@ import { createAuthService } from './services/auth-service.js'
 import { createDashboardService } from './services/dashboard-service.js'
 import { createAntiFraudService } from './services/anti-fraud-service.js'
 import { createGroceryService } from './services/grocery-service.js'
+import { createMediaService } from './services/media-service.js'
 import { createAuthMiddleware } from './middleware/auth-middleware.js'
 import { createAuthRoutes } from './routes/auth-routes.js'
 import { createCustomerRoutes } from './routes/customer-routes.js'
@@ -20,6 +21,7 @@ import { createReportRoutes } from './routes/report-routes.js'
 import { createAdminRoutes } from './routes/admin-routes.js'
 import { createAntiFraudRoutes } from './routes/anti-fraud-routes.js'
 import { createGroceryRoutes } from './routes/grocery-routes.js'
+import { createMediaRoutes } from './routes/media-routes.js'
 import { createAdminService } from './services/admin-service.js'
 
 export async function createBackendApp() {
@@ -75,6 +77,9 @@ export async function createBackendApp() {
   const groceryService = createGroceryService({
     dataRepository,
   })
+  const mediaService = createMediaService({
+    dataRepository,
+  })
   const { authMiddleware, requireAdmin } = createAuthMiddleware({
     dataRepository,
     securityService,
@@ -95,6 +100,7 @@ export async function createBackendApp() {
   app.use('/api/modules', createModuleRoutes({ authMiddleware, taskService }))
   app.use('/api/anti-fraud', createAntiFraudRoutes({ authMiddleware, antiFraudService }))
   app.use('/api/grocery', createGroceryRoutes({ authMiddleware, groceryService }))
+  app.use('/api/media', createMediaRoutes({ authMiddleware, mediaService }))
   app.use('/api/admin', createAdminRoutes({ authMiddleware, requireAdmin, adminService }))
 
   app.get('/api/health', (_req, res) => {

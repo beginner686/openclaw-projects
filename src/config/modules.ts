@@ -74,7 +74,7 @@ export const moduleCatalog: ModuleMeta[] = [
     mobileSupported: true,
   },
   {
-    moduleKey: 'matchmaking-ai',
+    moduleKey: 'matchmaking-assistant',
     name: '高学历相亲 AI 自动匹配',
     category: 'personal',
     description: '基于偏好与约束条件自动匹配候选人，并推送提醒。',
@@ -128,7 +128,7 @@ export const moduleCatalog: ModuleMeta[] = [
     mobileSupported: true,
   },
   {
-    moduleKey: 'job-lead-capture',
+    moduleKey: 'job-lead-automation',
     name: '个人求职线索自动抓取',
     category: 'personal',
     description: '自动抓取职位线索并按匹配度整理投递优先级。',
@@ -137,10 +137,10 @@ export const moduleCatalog: ModuleMeta[] = [
     mobileSupported: true,
   },
   {
-    moduleKey: 'content-auto-publishing',
-    name: '个人内容自动生成与发布',
+    moduleKey: 'content-generation-publisher',
+    name: '自媒体内容与选品工作台',
     category: 'personal',
-    description: '按内容主题自动生成多平台文案并计划发布节奏。',
+    description: '覆盖选题、脚本、平台改写、选品评分与发布排期的自媒体工作流。',
     icon: 'EditPen',
     status: 'active',
     mobileSupported: true,

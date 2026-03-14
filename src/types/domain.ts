@@ -207,3 +207,110 @@ export interface AntiFraudDashboardData {
   latestEvidences: AntiFraudEvidence[]
   latestReports: AntiFraudReport[]
 }
+
+export interface MediaProject {
+  projectId: string
+  ownerId: string
+  name: string
+  niche: string
+  targetPlatforms: string[]
+  goal: string
+  status: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface MediaTopic {
+  topicId: string
+  projectId: string
+  ownerId: string
+  platform: string
+  title: string
+  angle: string
+  heatScore: number
+  convertScore: number
+  tags: string[]
+  status: string
+  createdAt: string
+}
+
+export interface MediaContent {
+  contentId: string
+  projectId: string
+  ownerId: string
+  topicId: string
+  sourceType: string
+  platform: string
+  title: string
+  hook: string
+  scriptText: string
+  ctaText: string
+  commentsGuide: string
+  version: number
+  createdAt: string
+  updatedAt: string
+}
+
+export interface MediaProduct {
+  productId: string
+  projectId: string
+  ownerId: string
+  platformSource: string
+  name: string
+  url: string
+  price: number
+  commissionRate: number
+  shippingMode: string
+  supplier: string
+  stockHint: number
+  sellingPoint: string
+  status: string
+  score: number
+  decision: 'pending' | 'priority' | 'candidate' | 'drop'
+  reasons: string[]
+  createdAt: string
+  updatedAt: string
+}
+
+export interface MediaSchedule {
+  scheduleId: string
+  projectId: string
+  ownerId: string
+  publishDate: string
+  platform: string
+  topicId: string
+  contentId: string
+  productId: string
+  status: string
+  note: string
+  executedAt: string
+  failureReason: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface MediaDashboardData {
+  project: MediaProject
+  stats: {
+    topics: number
+    contents: number
+    products: number
+    schedules: number
+    priorityProducts: number
+    publishedSchedules: number
+    failedSchedules: number
+    scheduleSuccessRate: number
+  }
+  latestTopics: MediaTopic[]
+  latestContents: MediaContent[]
+  latestProducts: MediaProduct[]
+  upcomingSchedules: MediaSchedule[]
+  scheduleSummary?: {
+    planned: number
+    publishing: number
+    published: number
+    failed: number
+    successRate: number
+    topFailureReasons: Array<{ reason: string; count: number }>
+  }
+}

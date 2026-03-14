@@ -211,6 +211,109 @@ function mapGroceryFreshnessRow(row) {
   }
 }
 
+function mapMediaProjectRow(row) {
+  return {
+    projectId: row.project_id,
+    ownerId: row.owner_id,
+    name: row.name,
+    niche: row.niche ?? '',
+    targetPlatforms: parseJson(row.target_platforms_json, []),
+    goal: row.goal ?? '',
+    status: row.status ?? 'active',
+    createdAt: toIso(row.created_at),
+    updatedAt: toIso(row.updated_at),
+  }
+}
+
+function mapMediaTopicRow(row) {
+  return {
+    topicId: row.topic_id,
+    projectId: row.project_id,
+    ownerId: row.owner_id,
+    platform: row.platform,
+    title: row.title,
+    angle: row.angle ?? '',
+    heatScore: Number(row.heat_score ?? 0),
+    convertScore: Number(row.convert_score ?? 0),
+    tags: parseJson(row.tags_json, []),
+    status: row.status ?? 'draft',
+    createdAt: toIso(row.created_at),
+  }
+}
+
+function mapMediaContentRow(row) {
+  return {
+    contentId: row.content_id,
+    projectId: row.project_id,
+    ownerId: row.owner_id,
+    topicId: row.topic_id ?? '',
+    sourceType: row.source_type ?? 'topic',
+    platform: row.platform,
+    title: row.title,
+    hook: row.hook ?? '',
+    scriptText: row.script_text ?? '',
+    ctaText: row.cta_text ?? '',
+    commentsGuide: row.comments_guide ?? '',
+    version: Number(row.version_no ?? 1),
+    createdAt: toIso(row.created_at),
+    updatedAt: toIso(row.updated_at),
+  }
+}
+
+function mapMediaProductRow(row) {
+  return {
+    productId: row.product_id,
+    projectId: row.project_id,
+    ownerId: row.owner_id,
+    platformSource: row.platform_source ?? '',
+    name: row.name,
+    url: row.url ?? '',
+    price: Number(row.price ?? 0),
+    commissionRate: Number(row.commission_rate ?? 0),
+    shippingMode: row.shipping_mode ?? '',
+    supplier: row.supplier ?? '',
+    stockHint: Number(row.stock_hint ?? 0),
+    sellingPoint: row.selling_point ?? '',
+    status: row.status ?? 'active',
+    score: Number(row.score ?? 0),
+    decision: row.decision ?? 'pending',
+    reasons: parseJson(row.reasons_json, []),
+    createdAt: toIso(row.created_at),
+    updatedAt: toIso(row.updated_at),
+  }
+}
+
+function mapMediaScheduleRow(row) {
+  let publishDate = ''
+  if (typeof row.publish_date === 'string') {
+    publishDate = row.publish_date.slice(0, 10)
+  } else if (row.publish_date instanceof Date) {
+    const year = row.publish_date.getFullYear()
+    const month = String(row.publish_date.getMonth() + 1).padStart(2, '0')
+    const day = String(row.publish_date.getDate()).padStart(2, '0')
+    publishDate = `${year}-${month}-${day}`
+  } else {
+    publishDate = toIso(row.publish_date).slice(0, 10)
+  }
+
+  return {
+    scheduleId: row.schedule_id,
+    projectId: row.project_id,
+    ownerId: row.owner_id,
+    publishDate,
+    platform: row.platform,
+    topicId: row.topic_id ?? '',
+    contentId: row.content_id ?? '',
+    productId: row.product_id ?? '',
+    status: row.status ?? 'planned',
+    note: row.note ?? '',
+    executedAt: row.executed_at ? toIso(row.executed_at) : '',
+    failureReason: row.failure_reason ?? '',
+    createdAt: toIso(row.created_at),
+    updatedAt: toIso(row.updated_at),
+  }
+}
+
 export function createDataRepository({
   env,
   moduleCatalog,
@@ -372,6 +475,108 @@ export function createDataRepository({
         updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `)
+
+    await p.query(`
+      CREATE TABLE IF NOT EXISTS media_projects (
+        id BIGINT PRIMARY KEY AUTO_INCREMENT,
+        project_id VARCHAR(64) NOT NULL UNIQUE,
+        owner_id VARCHAR(64) NOT NULL,
+        name VARCHAR(120) NOT NULL,
+        niche VARCHAR(120) NULL,
+        target_platforms_json JSON NOT NULL,
+        goal VARCHAR(120) NULL,
+        status VARCHAR(20) NOT NULL DEFAULT 'active',
+        created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+        updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+        INDEX idx_media_projects_owner_updated (owner_id, updated_at),
+        CONSTRAINT fk_media_projects_owner FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `)
+
+    await p.query(`
+      CREATE TABLE IF NOT EXISTS media_topics (
+        id BIGINT PRIMARY KEY AUTO_INCREMENT,
+        topic_id VARCHAR(64) NOT NULL UNIQUE,
+        project_id VARCHAR(64) NOT NULL,
+        owner_id VARCHAR(64) NOT NULL,
+        platform VARCHAR(40) NOT NULL,
+        title VARCHAR(300) NOT NULL,
+        angle VARCHAR(240) NULL,
+        heat_score INT NOT NULL DEFAULT 0,
+        convert_score INT NOT NULL DEFAULT 0,
+        tags_json JSON NOT NULL,
+        status VARCHAR(20) NOT NULL DEFAULT 'draft',
+        created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+        INDEX idx_media_topics_owner_project_created (owner_id, project_id, created_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `)
+
+    await p.query(`
+      CREATE TABLE IF NOT EXISTS media_contents (
+        id BIGINT PRIMARY KEY AUTO_INCREMENT,
+        content_id VARCHAR(64) NOT NULL UNIQUE,
+        project_id VARCHAR(64) NOT NULL,
+        owner_id VARCHAR(64) NOT NULL,
+        topic_id VARCHAR(64) NULL,
+        source_type VARCHAR(30) NOT NULL DEFAULT 'topic',
+        platform VARCHAR(40) NOT NULL,
+        title VARCHAR(300) NOT NULL,
+        hook VARCHAR(400) NULL,
+        script_text MEDIUMTEXT NOT NULL,
+        cta_text VARCHAR(400) NULL,
+        comments_guide VARCHAR(400) NULL,
+        version_no INT NOT NULL DEFAULT 1,
+        created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+        updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+        INDEX idx_media_contents_owner_project_updated (owner_id, project_id, updated_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `)
+
+    await p.query(`
+      CREATE TABLE IF NOT EXISTS media_products (
+        id BIGINT PRIMARY KEY AUTO_INCREMENT,
+        product_id VARCHAR(64) NOT NULL UNIQUE,
+        project_id VARCHAR(64) NOT NULL,
+        owner_id VARCHAR(64) NOT NULL,
+        platform_source VARCHAR(40) NULL,
+        name VARCHAR(240) NOT NULL,
+        url VARCHAR(1000) NULL,
+        price DECIMAL(10,2) NOT NULL DEFAULT 0,
+        commission_rate DECIMAL(6,2) NOT NULL DEFAULT 0,
+        shipping_mode VARCHAR(40) NULL,
+        supplier VARCHAR(120) NULL,
+        stock_hint INT NOT NULL DEFAULT 0,
+        selling_point VARCHAR(500) NULL,
+        status VARCHAR(20) NOT NULL DEFAULT 'active',
+        score INT NOT NULL DEFAULT 0,
+        decision VARCHAR(20) NOT NULL DEFAULT 'pending',
+        reasons_json JSON NOT NULL,
+        created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+        updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+        INDEX idx_media_products_owner_project_updated (owner_id, project_id, updated_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `)
+
+    await p.query(`
+      CREATE TABLE IF NOT EXISTS media_schedules (
+        id BIGINT PRIMARY KEY AUTO_INCREMENT,
+        schedule_id VARCHAR(64) NOT NULL UNIQUE,
+        project_id VARCHAR(64) NOT NULL,
+        owner_id VARCHAR(64) NOT NULL,
+        publish_date DATE NOT NULL,
+        platform VARCHAR(40) NOT NULL,
+        topic_id VARCHAR(64) NULL,
+        content_id VARCHAR(64) NULL,
+        product_id VARCHAR(64) NULL,
+        status VARCHAR(20) NOT NULL DEFAULT 'planned',
+        note VARCHAR(500) NULL,
+        executed_at DATETIME(3) NULL,
+        failure_reason VARCHAR(300) NULL,
+        created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+        updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+        INDEX idx_media_schedules_owner_project_publish (owner_id, project_id, publish_date)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `)
   }
 
   async function ensureSchemaMigrations() {
@@ -394,6 +599,16 @@ export function createDataRepository({
     const [reportFileIndexes] = await p.query("SHOW INDEX FROM tasks WHERE Key_name = 'idx_tasks_report_file'")
     if (!reportFileIndexes.length) {
       await p.query('CREATE INDEX idx_tasks_report_file ON tasks(report_file)')
+    }
+
+    const [mediaScheduleExecutedAtCols] = await p.query("SHOW COLUMNS FROM media_schedules LIKE 'executed_at'")
+    if (!mediaScheduleExecutedAtCols.length) {
+      await p.query('ALTER TABLE media_schedules ADD COLUMN executed_at DATETIME(3) NULL AFTER note')
+    }
+
+    const [mediaScheduleFailureReasonCols] = await p.query("SHOW COLUMNS FROM media_schedules LIKE 'failure_reason'")
+    if (!mediaScheduleFailureReasonCols.length) {
+      await p.query('ALTER TABLE media_schedules ADD COLUMN failure_reason VARCHAR(300) NULL AFTER executed_at')
     }
 
     await p.query(`
@@ -761,7 +976,7 @@ export function createDataRepository({
     await ensureSchemaMigrations()
     await ensureModuleKeyMigrations()
     await seedIfEmpty()
-    await ensureRequiredModuleAccess(['anti-fraud-guardian', 'smart-grocery-supermarket'])
+    await ensureRequiredModuleAccess(['anti-fraud-guardian', 'smart-grocery-supermarket', 'content-generation-publisher'])
   }
 
   async function insertUser(user) {
@@ -1439,6 +1654,347 @@ export function createDataRepository({
     return Number(row.c ?? 0)
   }
 
+  async function createMediaProject(project) {
+    const p = await ensurePool()
+    await p.query(
+      `INSERT INTO media_projects
+      (project_id, owner_id, name, niche, target_platforms_json, goal, status, created_at, updated_at)
+      VALUES (?, ?, ?, ?, CAST(? AS JSON), ?, ?, ?, ?)`,
+      [
+        project.projectId,
+        project.ownerId,
+        project.name,
+        project.niche || null,
+        toJson(project.targetPlatforms ?? []),
+        project.goal || null,
+        project.status ?? 'active',
+        toMysqlDateTime(project.createdAt),
+        toMysqlDateTime(project.updatedAt),
+      ],
+    )
+    return findMediaProjectById(project.ownerId, project.projectId)
+  }
+
+  async function findMediaProjectById(ownerId, projectId) {
+    const p = await ensurePool()
+    const [rows] = await p.query(
+      `SELECT *
+       FROM media_projects
+       WHERE owner_id = ? AND project_id = ?
+       LIMIT 1`,
+      [ownerId, projectId],
+    )
+    return rows.length ? mapMediaProjectRow(rows[0]) : null
+  }
+
+  async function listMediaProjects(ownerId, limit = 20) {
+    const p = await ensurePool()
+    const [rows] = await p.query(
+      `SELECT *
+       FROM media_projects
+       WHERE owner_id = ?
+       ORDER BY updated_at DESC
+       LIMIT ?`,
+      [ownerId, limit],
+    )
+    return rows.map(mapMediaProjectRow)
+  }
+
+  async function createMediaTopics(topics) {
+    if (!topics.length) return []
+    const p = await ensurePool()
+    const conn = await p.getConnection()
+    try {
+      await conn.beginTransaction()
+      for (const topic of topics) {
+        await conn.query(
+          `INSERT INTO media_topics
+          (topic_id, project_id, owner_id, platform, title, angle, heat_score, convert_score, tags_json, status, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, CAST(? AS JSON), ?, ?)`,
+          [
+            topic.topicId,
+            topic.projectId,
+            topic.ownerId,
+            topic.platform,
+            topic.title,
+            topic.angle || null,
+            Number(topic.heatScore ?? 0),
+            Number(topic.convertScore ?? 0),
+            toJson(topic.tags ?? []),
+            topic.status ?? 'draft',
+            toMysqlDateTime(topic.createdAt),
+          ],
+        )
+      }
+      await conn.commit()
+    } catch (error) {
+      await conn.rollback()
+      throw error
+    } finally {
+      conn.release()
+    }
+    return listMediaTopics(topics[0].ownerId, topics[0].projectId, topics.length)
+  }
+
+  async function listMediaTopics(ownerId, projectId, limit = 100) {
+    const p = await ensurePool()
+    const [rows] = await p.query(
+      `SELECT *
+       FROM media_topics
+       WHERE owner_id = ? AND project_id = ?
+       ORDER BY created_at DESC
+       LIMIT ?`,
+      [ownerId, projectId, limit],
+    )
+    return rows.map(mapMediaTopicRow)
+  }
+
+  async function findMediaTopicById(ownerId, topicId) {
+    const p = await ensurePool()
+    const [rows] = await p.query(
+      `SELECT *
+       FROM media_topics
+       WHERE owner_id = ? AND topic_id = ?
+       LIMIT 1`,
+      [ownerId, topicId],
+    )
+    return rows.length ? mapMediaTopicRow(rows[0]) : null
+  }
+
+  async function createMediaContent(content) {
+    const p = await ensurePool()
+    await p.query(
+      `INSERT INTO media_contents
+      (content_id, project_id, owner_id, topic_id, source_type, platform, title, hook, script_text, cta_text, comments_guide, version_no, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        content.contentId,
+        content.projectId,
+        content.ownerId,
+        content.topicId || null,
+        content.sourceType ?? 'topic',
+        content.platform,
+        content.title,
+        content.hook || null,
+        content.scriptText,
+        content.ctaText || null,
+        content.commentsGuide || null,
+        Number(content.version ?? 1),
+        toMysqlDateTime(content.createdAt),
+        toMysqlDateTime(content.updatedAt),
+      ],
+    )
+    return findMediaContentById(content.ownerId, content.contentId)
+  }
+
+  async function findMediaContentById(ownerId, contentId) {
+    const p = await ensurePool()
+    const [rows] = await p.query(
+      `SELECT *
+       FROM media_contents
+       WHERE owner_id = ? AND content_id = ?
+       LIMIT 1`,
+      [ownerId, contentId],
+    )
+    return rows.length ? mapMediaContentRow(rows[0]) : null
+  }
+
+  async function listMediaContents(ownerId, projectId, limit = 100) {
+    const p = await ensurePool()
+    const [rows] = await p.query(
+      `SELECT *
+       FROM media_contents
+       WHERE owner_id = ? AND project_id = ?
+       ORDER BY updated_at DESC
+       LIMIT ?`,
+      [ownerId, projectId, limit],
+    )
+    return rows.map(mapMediaContentRow)
+  }
+
+  async function createMediaProduct(product) {
+    const p = await ensurePool()
+    await p.query(
+      `INSERT INTO media_products
+      (product_id, project_id, owner_id, platform_source, name, url, price, commission_rate, shipping_mode, supplier, stock_hint, selling_point, status, score, decision, reasons_json, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CAST(? AS JSON), ?, ?)`,
+      [
+        product.productId,
+        product.projectId,
+        product.ownerId,
+        product.platformSource || null,
+        product.name,
+        product.url || null,
+        Number(product.price ?? 0),
+        Number(product.commissionRate ?? 0),
+        product.shippingMode || null,
+        product.supplier || null,
+        Number(product.stockHint ?? 0),
+        product.sellingPoint || null,
+        product.status ?? 'active',
+        Number(product.score ?? 0),
+        product.decision ?? 'pending',
+        toJson(product.reasons ?? []),
+        toMysqlDateTime(product.createdAt),
+        toMysqlDateTime(product.updatedAt),
+      ],
+    )
+    return findMediaProductById(product.ownerId, product.productId)
+  }
+
+  async function findMediaProductById(ownerId, productId) {
+    const p = await ensurePool()
+    const [rows] = await p.query(
+      `SELECT *
+       FROM media_products
+       WHERE owner_id = ? AND product_id = ?
+       LIMIT 1`,
+      [ownerId, productId],
+    )
+    return rows.length ? mapMediaProductRow(rows[0]) : null
+  }
+
+  async function listMediaProducts(ownerId, projectId, limit = 200) {
+    const p = await ensurePool()
+    const [rows] = await p.query(
+      `SELECT *
+       FROM media_products
+       WHERE owner_id = ? AND project_id = ?
+       ORDER BY updated_at DESC
+       LIMIT ?`,
+      [ownerId, projectId, limit],
+    )
+    return rows.map(mapMediaProductRow)
+  }
+
+  async function updateMediaProduct(ownerId, productId, payload) {
+    const existing = await findMediaProductById(ownerId, productId)
+    if (!existing) return null
+    const p = await ensurePool()
+    await p.query(
+      `UPDATE media_products
+       SET platform_source = ?, name = ?, url = ?, price = ?, commission_rate = ?, shipping_mode = ?, supplier = ?, stock_hint = ?, selling_point = ?, status = ?, score = ?, decision = ?, reasons_json = CAST(? AS JSON), updated_at = CURRENT_TIMESTAMP(3)
+       WHERE owner_id = ? AND product_id = ?`,
+      [
+        payload.platformSource ?? existing.platformSource ?? null,
+        payload.name ?? existing.name,
+        payload.url ?? existing.url ?? null,
+        Number(payload.price ?? existing.price ?? 0),
+        Number(payload.commissionRate ?? existing.commissionRate ?? 0),
+        payload.shippingMode ?? existing.shippingMode ?? null,
+        payload.supplier ?? existing.supplier ?? null,
+        Number(payload.stockHint ?? existing.stockHint ?? 0),
+        payload.sellingPoint ?? existing.sellingPoint ?? null,
+        payload.status ?? existing.status ?? 'active',
+        Number(payload.score ?? existing.score ?? 0),
+        payload.decision ?? existing.decision ?? 'pending',
+        toJson(payload.reasons ?? existing.reasons ?? []),
+        ownerId,
+        productId,
+      ],
+    )
+    return findMediaProductById(ownerId, productId)
+  }
+
+  async function removeMediaProduct(ownerId, productId) {
+    const p = await ensurePool()
+    await p.query('DELETE FROM media_products WHERE owner_id = ? AND product_id = ?', [ownerId, productId])
+  }
+
+  async function clearMediaSchedulesByProject(ownerId, projectId) {
+    const p = await ensurePool()
+    await p.query('DELETE FROM media_schedules WHERE owner_id = ? AND project_id = ?', [ownerId, projectId])
+  }
+
+  async function createMediaSchedules(schedules) {
+    if (!schedules.length) return []
+    const p = await ensurePool()
+    const conn = await p.getConnection()
+    try {
+      await conn.beginTransaction()
+      for (const item of schedules) {
+        await conn.query(
+          `INSERT INTO media_schedules
+          (schedule_id, project_id, owner_id, publish_date, platform, topic_id, content_id, product_id, status, note, executed_at, failure_reason, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            item.scheduleId,
+            item.projectId,
+            item.ownerId,
+            String(item.publishDate).slice(0, 10),
+            item.platform,
+            item.topicId || null,
+            item.contentId || null,
+            item.productId || null,
+            item.status ?? 'planned',
+            item.note || null,
+            item.executedAt ? toMysqlDateTime(item.executedAt) : null,
+            item.failureReason || null,
+            toMysqlDateTime(item.createdAt),
+            toMysqlDateTime(item.updatedAt),
+          ],
+        )
+      }
+      await conn.commit()
+    } catch (error) {
+      await conn.rollback()
+      throw error
+    } finally {
+      conn.release()
+    }
+    return listMediaSchedules(schedules[0].ownerId, schedules[0].projectId, 120)
+  }
+
+  async function listMediaSchedules(ownerId, projectId, limit = 120) {
+    const p = await ensurePool()
+    const [rows] = await p.query(
+      `SELECT *
+       FROM media_schedules
+       WHERE owner_id = ? AND project_id = ?
+       ORDER BY publish_date ASC, created_at ASC
+       LIMIT ?`,
+      [ownerId, projectId, limit],
+    )
+    return rows.map(mapMediaScheduleRow)
+  }
+
+  async function findMediaScheduleById(ownerId, scheduleId) {
+    const p = await ensurePool()
+    const [rows] = await p.query(
+      `SELECT *
+       FROM media_schedules
+       WHERE owner_id = ? AND schedule_id = ?
+       LIMIT 1`,
+      [ownerId, scheduleId],
+    )
+    return rows.length ? mapMediaScheduleRow(rows[0]) : null
+  }
+
+  async function updateMediaSchedule(ownerId, scheduleId, payload) {
+    const existing = await findMediaScheduleById(ownerId, scheduleId)
+    if (!existing) return null
+    const p = await ensurePool()
+    await p.query(
+      `UPDATE media_schedules
+       SET publish_date = ?, platform = ?, topic_id = ?, content_id = ?, product_id = ?, status = ?, note = ?, executed_at = ?, failure_reason = ?, updated_at = CURRENT_TIMESTAMP(3)
+       WHERE owner_id = ? AND schedule_id = ?`,
+      [
+        String(payload.publishDate ?? existing.publishDate).slice(0, 10),
+        payload.platform ?? existing.platform,
+        payload.topicId ?? existing.topicId ?? null,
+        payload.contentId ?? existing.contentId ?? null,
+        payload.productId ?? existing.productId ?? null,
+        payload.status ?? existing.status ?? 'planned',
+        payload.note ?? existing.note ?? null,
+        payload.executedAt ? toMysqlDateTime(payload.executedAt) : null,
+        payload.failureReason ?? existing.failureReason ?? null,
+        ownerId,
+        scheduleId,
+      ],
+    )
+    return findMediaScheduleById(ownerId, scheduleId)
+  }
+
   async function close() {
     if (pool) {
       await pool.end()
@@ -1621,6 +2177,26 @@ export function createDataRepository({
     findAntiFraudComplaint,
     listAntiFraudComplaints,
     countAntiFraudComplaintsBetween,
+    // 自媒体工作台
+    createMediaProject,
+    findMediaProjectById,
+    listMediaProjects,
+    createMediaTopics,
+    listMediaTopics,
+    findMediaTopicById,
+    createMediaContent,
+    findMediaContentById,
+    listMediaContents,
+    createMediaProduct,
+    findMediaProductById,
+    listMediaProducts,
+    updateMediaProduct,
+    removeMediaProduct,
+    clearMediaSchedulesByProject,
+    createMediaSchedules,
+    listMediaSchedules,
+    findMediaScheduleById,
+    updateMediaSchedule,
     // 管理员专属
     listUsers,
     countUsers,

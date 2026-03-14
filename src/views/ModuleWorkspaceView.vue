@@ -7,6 +7,7 @@ import { moduleMap } from '@/config/modules'
 import { fetchModuleHistory, fetchModuleTask, runModuleTask } from '@/api/modules'
 import AntiFraudGuardianView from '@/views/AntiFraudGuardianView.vue'
 import SmartGroceryView from '@/views/SmartGroceryView.vue'
+import MediaWorkbenchView from '@/views/MediaWorkbenchView.vue'
 import { useAuthStore } from '@/stores/auth'
 import type { ModuleTaskResult } from '@/types/domain'
 
@@ -45,7 +46,8 @@ const moduleMeta = computed(() => moduleMap.get(moduleKey.value))
 const hasAccess = computed(() => auth.user?.enabledModules.includes(moduleKey.value) ?? false)
 const isAntiFraudModule = computed(() => moduleKey.value === 'anti-fraud-guardian')
 const isSmartGroceryModule = computed(() => moduleKey.value === 'smart-grocery-supermarket')
-const isDedicatedModule = computed(() => isAntiFraudModule.value || isSmartGroceryModule.value)
+const isMediaModule = computed(() => moduleKey.value === 'content-generation-publisher')
+const isDedicatedModule = computed(() => isAntiFraudModule.value || isSmartGroceryModule.value || isMediaModule.value)
 
 const onUploadChange: UploadProps['onChange'] = (file, files) => {
   uploadList.value = files.slice(-5)
@@ -255,6 +257,8 @@ onUnmounted(() => {
     <AntiFraudGuardianView v-if="moduleMeta && hasAccess && isAntiFraudModule" />
 
     <SmartGroceryView v-if="moduleMeta && hasAccess && isSmartGroceryModule" />
+
+    <MediaWorkbenchView v-if="moduleMeta && hasAccess && isMediaModule" />
 
     <div class="module-grid" v-if="moduleMeta && hasAccess && !isDedicatedModule">
       <section class="card-panel task-form-panel">

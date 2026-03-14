@@ -3,24 +3,12 @@ import { onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { fetchAdminUsers, updateUserModules } from '@/api/admin'
 import type { AdminUser } from '@/api/admin'
+import { moduleCatalog } from '@/config/modules'
 
-const ALL_MODULES = [
-  { key: 'invoice-recovery-archive', name: '发票追索与归档整理' },
-  { key: 'debt-evidence-manager', name: '欠款证据管家' },
-  { key: 'enterprise-marketing-automation', name: '企业营销全自动' },
-  { key: 'public-opinion-monitoring', name: '企业舆情监控' },
-  { key: 'lead-capture-followup', name: '企业线索抓取与跟进' },
-  { key: 'private-domain-operations', name: '企业私域自动运营' },
-  { key: 'competitor-monitoring', name: '企业竞品监控' },
-  { key: 'data-retrospective-automation', name: '企业数据复盘自动化' },
-  { key: 'matchmaking-ai', name: '高学历相亲 AI 自动匹配' },
-  { key: 'product-health-check', name: 'AI 商品体检' },
-  { key: 'anti-fraud-guardian', name: '个人反诈守护' },
-  { key: 'personal-invoice-manager', name: '个人发票管理' },
-  { key: 'teacher-knowledge-monetization', name: '教师知识库 + 投稿变现' },
-  { key: 'job-lead-capture', name: '个人求职线索自动抓取' },
-  { key: 'content-auto-publishing', name: '个人内容自动生成与发布' },
-]
+const ALL_MODULES = moduleCatalog.map((item) => ({
+  key: item.moduleKey,
+  name: item.name,
+}))
 
 const loading = ref(true)
 const users = ref<AdminUser[]>([])

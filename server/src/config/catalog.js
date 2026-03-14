@@ -158,9 +158,9 @@ export const moduleCatalog = [
   },
   {
     moduleKey: 'content-generation-publisher',
-    name: '个人内容自动生成与发布',
+    name: '自媒体内容与选品工作台',
     category: 'personal',
-    description: '按内容主题自动生成多平台文案并计划发布节奏。',
+    description: '覆盖选题、脚本、平台改写、选品评分与发布排期的自媒体工作流。',
     icon: 'EditPen',
     status: 'active',
     mobileSupported: true,
